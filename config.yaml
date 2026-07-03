@@ -1,0 +1,63 @@
+poll_interval_seconds: 300           # 5 minutes
+
+# On first boot with an empty dedupe store, mark current items seen WITHOUT
+# alerting, so a restart never dumps the backlog to Discord (see §8).
+warm_start: true
+
+llm:
+  model: claude-haiku-4-5
+  max_tokens: 1024
+  batch_size: 20                     # items per Claude call
+  rewrite: true                      # true = Claude rewrites kept items to your style
+  # The interest profile is the heart of the filter. Plain English.
+  interest_profile: |
+    KEEP news about:
+      - My watchlist tickers: NVDA, AMD, MRVL, TSM, AVGO, INTC, QCOM
+      - AI chip / datacenter / HBM demand, capex, supply
+      - Earnings results, guidance changes, major product launches
+      - M&A, partnerships, and major customer wins in semiconductors
+      - Export controls / geopolitics directly affecting chip supply
+    DROP:
+      - Routine analyst rating changes / price target tweaks
+      - Small insider buys/sells
+      - Dividend/buyback routine announcements
+      - Generic market macro not specific to semis
+      - Duplicate coverage of a story already reported
+  # Urgency guidance — the filter tags every KEPT item high/medium/low.
+  urgency_guidance: |
+    high   = market-moving RIGHT NOW: earnings surprise, guidance cut/raise,
+             M&A announcement, major contract win/loss, halt, export ban.
+    medium = notable but not a same-minute trade trigger: product launch,
+             analyst day, partnership, sector-wide development.
+    low    = context / background worth reading but not acting on immediately.
+  rewrite_style: |
+    Rewrite each kept headline as ONE punchy sentence a busy trader can scan.
+    Lead with the ticker. State the fact, not hype. No emoji.
+
+sources:
+  finviz_news:
+    watchlist: [NVDA, AMD, MRVL, TSM, AVGO, INTC, QCOM]
+    mode: news_export        # news_export | html_fallback
+    max_items_per_fetch: 50
+  # v2 — uncomment when FinvizScreenerSource is built (§6.1):
+  # finviz_screener:
+  #   screener_url: "https://elite.finviz.com/screener.ashx?v=111&f=..."
+  #   max_items_per_fetch: 50
+
+sinks:
+  discord_news:
+    webhook_env_var: DISCORD_NEWS_WEBHOOK_URL
+    min_urgency: low                 # gets everything kept
+    username: "Market News"
+    rate_limit_sleep: 1.0
+  # v1.1 — add a second Discord channel for high-urgency only.
+  # Purely additive: create the webhook, set the env var, keep this block.
+  discord_urgent:
+    webhook_env_var: DISCORD_URGENT_WEBHOOK_URL
+    min_urgency: high                # gets only urgency == high
+    username: "🚨 Urgent"
+    rate_limit_sleep: 1.0
+
+dedupe:
+  prune_older_than_days: 30
+  path: ./seen.db                    # local dev; Render overrides via DEDUPE_PATH
