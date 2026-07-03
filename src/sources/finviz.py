@@ -98,7 +98,7 @@ class FinvizNewsSource(Source):
     # --- internals --------------------------------------------------------
 
     def _fetch_csv(self, token: str, ticker: Optional[str]) -> list[dict]:
-        params = {"auth": token}
+        params = {"auth": token, "v": "3"}
         if ticker:
             params["t"] = ticker  # per-ticker filter (adjust at integration time)
         try:
