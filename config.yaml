@@ -36,7 +36,7 @@ llm:
 
 sources:
   finviz_news:
-    watchlist: [NVDA, AMD, MRVL, TSM, AVGO, INTC, QCOM]
+    watchlist: []
     mode: news_export        # news_export | html_fallback
     max_items_per_fetch: 50
   # v2 — uncomment when FinvizScreenerSource is built (§6.1):
