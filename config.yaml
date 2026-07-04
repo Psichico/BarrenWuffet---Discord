@@ -50,6 +50,7 @@ sinks:
     webhook_env_var: DISCORD_NEWS_WEBHOOK_URL
     min_urgency: low                 # gets everything kept
     username: "Anuradha_1ka2_"
+    # avatar_url: "https://example.com/avatar.png"  # optional: link to a custom image URL
     rate_limit_sleep: 1.0
   # v1.1 — add a second Discord channel for high-urgency only.
   # Purely additive: create the webhook, set the env var, keep this block.

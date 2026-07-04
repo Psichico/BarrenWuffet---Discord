@@ -41,6 +41,7 @@ class DiscordSink(Sink):
         webhook_env_var: str,
         min_urgency: str = "low",
         username: Optional[str] = None,
+        avatar_url: Optional[str] = None,
         rate_limit_sleep: float = 1.0,
         request_timeout: float = 10.0,
     ):
@@ -54,6 +55,7 @@ class DiscordSink(Sink):
             )
         self.min_urgency = min_urgency if min_urgency in _RANK else "low"
         self.username = username
+        self.avatar_url = avatar_url
         self.rate_limit_sleep = rate_limit_sleep
         self.request_timeout = request_timeout
 
@@ -131,4 +133,6 @@ class DiscordSink(Sink):
         payload = {"embeds": [embed]}
         if self.username:
             payload["username"] = self.username
+        if self.avatar_url:
+            payload["avatar_url"] = self.avatar_url
         return payload
