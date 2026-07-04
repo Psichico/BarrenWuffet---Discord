@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Endpoint bases (see §6, Strategy A). Overridable via env for flexibility while
 # the exact API is being finalized.
 NEWS_EXPORT_URL = os.environ.get(
-    "FINVIZ_NEWS_EXPORT_URL", "https://elite.finviz.com/news_export.ashx"
+    "FINVIZ_NEWS_EXPORT_URL", "https://elite.finviz.com/export/news"
 )
 
 # Map possible CSV header names (lowercased) to our normalized fields. Finviz has
@@ -82,11 +82,11 @@ class FinvizNewsSource(Source):
         seen_in_batch: set[str] = set()
 
         if self.watchlist:
-            for ticker in self.watchlist:
-                rows = self._fetch_csv(token, ticker=ticker)
-                items.extend(self._rows_to_items(rows, default_ticker=ticker,
-                                                 seen=seen_in_batch))
-                time.sleep(self.polite_sleep)  # be polite between requests
+            # Pass all tickers as a comma-separated string to fetch in a single query
+            tickers_str = ",".join(self.watchlist)
+            rows = self._fetch_csv(token, ticker=tickers_str)
+            items.extend(self._rows_to_items(rows, default_ticker=None,
+                                             seen=seen_in_batch))
         else:
             # No watchlist: pull the general news export once.
             rows = self._fetch_csv(token, ticker=None)
@@ -98,9 +98,12 @@ class FinvizNewsSource(Source):
     # --- internals --------------------------------------------------------
 
     def _fetch_csv(self, token: str, ticker: Optional[str]) -> list[dict]:
-        params = {"auth": token, "v": "3"}
+        params = {"auth": token}
         if ticker:
-            params["t"] = ticker  # per-ticker filter (adjust at integration time)
+            params["v"] = "3"
+            params["t"] = ticker  # query multiple tickers comma-separated
+        else:
+            params["v"] = "1"     # Market news ordered by time
         try:
             resp = requests.get(
                 NEWS_EXPORT_URL, params=params, timeout=self.request_timeout
