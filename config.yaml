@@ -61,5 +61,5 @@ sinks:
   #   rate_limit_sleep: 1.0
 
 dedupe:
-  prune_older_than_days: 30
+  prune_older_than_days: 120
   path: ./seen.db                    # local dev; Render overrides via DEDUPE_PATH
