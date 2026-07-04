@@ -12,7 +12,6 @@ llm:
   # The interest profile is the heart of the filter. Plain English.
   interest_profile: |
     KEEP news about:
-      - My watchlist tickers: NVDA, AMD, MRVL, TSM, AVGO, INTC, QCOM
       - AI chip / datacenter / HBM demand, capex, supply
       - Earnings results, guidance changes, major product launches in tech and semiconductors
       - M&A, partnerships, and major customer wins in tech and semiconductors
@@ -50,7 +49,7 @@ sinks:
   discord_news:
     webhook_env_var: DISCORD_NEWS_WEBHOOK_URL
     min_urgency: low                 # gets everything kept
-    username: "Market News"
+    username: "Anuradha_1ka2_"
     rate_limit_sleep: 1.0
   # v1.1 — add a second Discord channel for high-urgency only.
   # Purely additive: create the webhook, set the env var, keep this block.
