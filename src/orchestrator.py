@@ -71,7 +71,8 @@ class Orchestrator:
 
             if self._stop:
                 break
-            self._sleep(self.poll_interval_seconds)
+            sleep_duration = self._get_sleep_duration()
+            self._sleep(sleep_duration)
 
         logger.info("Orchestrator stopped cleanly.")
         self.store.close()
@@ -123,6 +124,36 @@ class Orchestrator:
         logger.info("KEPT [%s] %s -> %s", item.urgency, item.headline, delivered_to)
 
     # --- helpers (overridable for tests) ----------------------------------
+
+    def _get_sleep_duration(self) -> int:
+        import datetime
+        from datetime import timezone, timedelta
+        
+        # US Eastern Time (ET) is roughly UTC-4 or UTC-5. Using a fixed UTC-4 offset
+        # covers the weekday/weekend transition days accurately.
+        et_tz = timezone(timedelta(hours=-4))
+        now_et = datetime.datetime.now(et_tz)
+        
+        weekday = now_et.weekday()  # 0=Monday, ..., 5=Saturday, 6=Sunday
+        hour = now_et.hour
+        
+        # Friday after 20:00 (8 PM ET, when post-market ends) to Sunday before 18:00 (6 PM ET, when futures reopen)
+        is_weekend = False
+        if weekday == 5:  # Saturday
+            is_weekend = True
+        elif weekday == 6:  # Sunday
+            if hour < 18:
+                is_weekend = True
+        elif weekday == 4:  # Friday
+            if hour >= 20:
+                is_weekend = True
+                
+        if is_weekend:
+            # Poll every 3 hours (10800 seconds) during the weekend
+            return 10800
+        else:
+            # Poll every 5 minutes (or as configured) during the week
+            return self.poll_interval_seconds
 
     def _sleep(self, seconds: int) -> None:
         # Sleep in short slices so SIGTERM is honored promptly.
