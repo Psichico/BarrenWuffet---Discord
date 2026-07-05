@@ -1,4 +1,5 @@
-poll_interval_seconds: 300           # 5 minutes
+poll_interval_seconds: 300           # 5 minutes on weekdays
+poll_interval_weekend_seconds: 10800 # 3 hours on weekends
 
 # On first boot with an empty dedupe store, mark current items seen WITHOUT
 # alerting, so a restart never dumps the backlog to Discord (see §8).

@@ -52,6 +52,7 @@ def build_orchestrator(config_path: str = "config.yaml") -> Orchestrator:
         sinks=sinks,
         store=store,
         poll_interval_seconds=settings.poll_interval_seconds,
+        poll_interval_weekend_seconds=settings.poll_interval_weekend_seconds,
         batch_size=settings.llm.batch_size,
         prune_older_than_days=settings.dedupe.prune_older_than_days,
         warm_start=settings.warm_start,

@@ -37,6 +37,7 @@ class Settings:
     poll_interval_seconds: int
     llm: LLMConfig
     dedupe: DedupeConfig
+    poll_interval_weekend_seconds: int = 10800
     sources: dict[str, dict] = field(default_factory=dict)
     sinks: dict[str, dict] = field(default_factory=dict)
     warm_start: bool = True
@@ -75,6 +76,7 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
         poll_interval_seconds=int(raw.get("poll_interval_seconds", 300)),
         llm=llm,
         dedupe=dedupe,
+        poll_interval_weekend_seconds=int(raw.get("poll_interval_weekend_seconds", 10800)),
         sources=raw.get("sources", {}) or {},
         sinks=raw.get("sinks", {}) or {},
         warm_start=bool(raw.get("warm_start", True)),

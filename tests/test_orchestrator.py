@@ -32,9 +32,10 @@ def test_get_sleep_duration_saturday(monkeypatch):
     
     orch = Orchestrator(
         sources=[], filter_=None, sinks=[], store=None,
-        poll_interval_seconds=300, batch_size=20
+        poll_interval_seconds=300, batch_size=20,
+        poll_interval_weekend_seconds=7200
     )
-    assert orch._get_sleep_duration() == 10800
+    assert orch._get_sleep_duration() == 7200
 
 def test_get_sleep_duration_friday_night(monkeypatch):
     # Friday 9 PM ET (July 3, 2026)

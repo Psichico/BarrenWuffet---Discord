@@ -34,6 +34,7 @@ class Orchestrator:
         store: SeenStore,
         poll_interval_seconds: int,
         batch_size: int,
+        poll_interval_weekend_seconds: int = 10800,
         prune_older_than_days: int = 30,
         warm_start: bool = True,
     ):
@@ -42,6 +43,7 @@ class Orchestrator:
         self.sinks = sinks
         self.store = store
         self.poll_interval_seconds = poll_interval_seconds
+        self.poll_interval_weekend_seconds = poll_interval_weekend_seconds
         self.batch_size = batch_size
         self.prune_older_than_days = prune_older_than_days
         self.warm_start = warm_start
@@ -150,7 +152,7 @@ class Orchestrator:
                 
         if is_weekend:
             # Poll every 3 hours (10800 seconds) during the weekend
-            return 10800
+            return self.poll_interval_weekend_seconds
         else:
             # Poll every 5 minutes (or as configured) during the week
             return self.poll_interval_seconds
