@@ -19,9 +19,6 @@ llm:
       - General AI developments, software models, and AI cloud infrastructure spending (e.g., OpenAI, Meta, Microsoft, Tesla, Google, Apple)
       - Major macroeconomic updates and market-moving events (e.g., Federal Reserve decisions, CPI/inflation, jobs/employment reports)
     DROP:
-      - Routine analyst rating changes / price target tweaks for non-watchlist stocks
-      - Small insider buys/sells
-      - Dividend/buyback routine announcements
       - Minor or routine economic data (only keep major market-moving macro)
       - Duplicate coverage of a story already reported
   # Urgency guidance — the filter tags every KEPT item high/medium/low.
