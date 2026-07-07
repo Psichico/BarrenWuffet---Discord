@@ -143,6 +143,7 @@ class FinvizNewsSource(Source):
                          resp.status_code, ticker)
             return []
 
+        resp.encoding = "utf-8"
         text = resp.text
         # An expired/invalid token sometimes returns an HTML login page with 200.
         if text.lstrip().lower().startswith("<!doctype") or "<html" in text[:200].lower():
