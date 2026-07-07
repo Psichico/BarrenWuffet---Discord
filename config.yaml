@@ -34,6 +34,7 @@ llm:
     Lead with the ticker. State the fact, not hype. No emoji.
 
 sources:
+  # Finviz Portfolio PID: 1001063054
   finviz_market:
     type: finviz_news
     v: "1"
