@@ -8,12 +8,14 @@ from __future__ import annotations
 
 from src.sources.base import Source
 from src.sources.finviz import FinvizNewsSource
+from src.sources.finviz_insider import FinvizInsiderSource
 
 # from src.sources.finviz_screener import FinvizScreenerSource  # v2: uncomment
 # from src.sources.x import XSource                             # future
 
 SOURCE_REGISTRY = {
     "finviz_news": FinvizNewsSource,
+    "finviz_insiders": FinvizInsiderSource,
     # "finviz_screener": FinvizScreenerSource,
     # "x": XSource,
 }

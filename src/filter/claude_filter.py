@@ -66,6 +66,11 @@ class ClaudeFilter(Filter):
         if not items:
             return items
 
+        # Only filter items that aren't already marked keep=True
+        items_to_filter = [item for item in items if not item.keep]
+        if not items_to_filter:
+            return items
+
         import os
         disable_filtering = os.environ.get("DISABLE_FILTERING", "").lower() in ("true", "1", "yes")
 
@@ -80,8 +85,8 @@ class ClaudeFilter(Filter):
             else "(rewriting disabled — always set rewrite to \"\")",
         )
 
-        for start in range(0, len(items), self.llm.batch_size):
-            batch = items[start:start + self.llm.batch_size]
+        for start in range(0, len(items_to_filter), self.llm.batch_size):
+            batch = items_to_filter[start:start + self.llm.batch_size]
             self._process_batch(batch, system_prompt)
         return items
 

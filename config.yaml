@@ -47,6 +47,10 @@ sources:
     watchlist: []
     mode: news_export        # news_export | html_fallback
     max_items_per_fetch: 50
+  finviz_insiders:
+    type: finviz_insiders
+    pid: "1001063054"
+    min_value: 1000000
 
 sinks:
   discord_news:
@@ -63,6 +67,12 @@ sinks:
     min_urgency: low                 # gets everything kept from stocks news
     allowed_sources: ["finviz_stocks"]
     # username: "Stock Alerts"
+    rate_limit_sleep: 1.0
+  discord_insiders:
+    type: discord
+    webhook_env_var: DISCORD_INSIDERS_WEBHOOK_URL
+    min_urgency: high
+    allowed_sources: ["finviz_insiders"]
     rate_limit_sleep: 1.0
 
 dedupe:
