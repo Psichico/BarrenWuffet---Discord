@@ -66,8 +66,15 @@ class ClaudeFilter(Filter):
         if not items:
             return items
 
+        import os
+        disable_filtering = os.environ.get("DISABLE_FILTERING", "").lower() in ("true", "1", "yes")
+
+        profile = self.llm.interest_profile
+        if disable_filtering:
+            profile = "KEEP news about:\n  - ALL topics. Always set 'keep' to true for all items."
+
         system_prompt = _SYSTEM_TEMPLATE.format(
-            interest_profile=self.llm.interest_profile,
+            interest_profile=profile,
             urgency_guidance=self.llm.urgency_guidance,
             rewrite_style=self.llm.rewrite_style if self.llm.rewrite
             else "(rewriting disabled — always set rewrite to \"\")",
@@ -112,14 +119,23 @@ class ClaudeFilter(Filter):
             if obj is None:
                 logger.warning("No filter result for index %d (%s) — dropping",
                                i, item.headline)
-                item.keep = False
+                import os
+                disable_filtering = os.environ.get("DISABLE_FILTERING", "").lower() in ("true", "1", "yes")
+                item.keep = True if disable_filtering else False
                 item.reason = "filter_parse_error"
                 item.urgency = "low"
                 continue
             self._apply(item, obj)
 
     def _apply(self, item: NewsItem, obj: dict) -> None:
-        item.keep = bool(obj.get("keep", False))
+        import os
+        disable_filtering = os.environ.get("DISABLE_FILTERING", "").lower() in ("true", "1", "yes")
+
+        keep_val = bool(obj.get("keep", False))
+        if disable_filtering:
+            keep_val = True
+
+        item.keep = keep_val
         item.reason = str(obj.get("reason", ""))[:500]
 
         urgency = str(obj.get("urgency", "low")).lower().strip()
@@ -172,8 +188,10 @@ class ClaudeFilter(Filter):
 
     @staticmethod
     def _fail_batch(batch: list[NewsItem], reason: str) -> None:
+        import os
+        disable_filtering = os.environ.get("DISABLE_FILTERING", "").lower() in ("true", "1", "yes")
         for item in batch:
-            item.keep = False
+            item.keep = True if disable_filtering else False
             item.reason = reason
             item.urgency = "low"
             item.rewritten = None

@@ -111,3 +111,18 @@ def test_api_exception_never_crashes():
     for item in items:
         assert item.keep is False
         assert item.reason == "filter_parse_error"
+
+
+def test_disable_filtering_forces_keep_true(monkeypatch):
+    monkeypatch.setenv("DISABLE_FILTERING", "true")
+    resp = (
+        '[{"index": 0, "keep": false, "urgency": "high", "reason": "earnings", '
+        '"rewrite": "NVDA tops Q2 estimates."},'
+        '{"index": 1, "keep": false, "urgency": "low", "reason": "routine", '
+        '"rewrite": ""}]'
+    )
+    f = ClaudeFilter(_cfg(), client=_FakeClient(resp))
+    items = f.process(_items())
+
+    assert items[0].keep is True
+    assert items[1].keep is True
