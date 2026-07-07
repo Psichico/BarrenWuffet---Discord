@@ -50,17 +50,25 @@ class FinvizNewsSource(Source):
 
     def __init__(
         self,
+        name: str = "finviz_news",
         watchlist: Optional[list[str]] = None,
         mode: str = "news_export",
         max_items_per_fetch: int = 50,
         request_timeout: float = 15.0,
         polite_sleep: float = 0.5,
+        v: Optional[str] = None,
+        c: Optional[str] = None,
+        pid: Optional[str] = None,
     ):
+        self.name = name
         self.watchlist = watchlist or []
         self.mode = mode
         self.max_items = max_items_per_fetch
         self.request_timeout = request_timeout
         self.polite_sleep = polite_sleep
+        self.v = v
+        self.c = c
+        self.pid = pid
 
     # --- public API -------------------------------------------------------
 
@@ -99,11 +107,22 @@ class FinvizNewsSource(Source):
 
     def _fetch_csv(self, token: str, ticker: Optional[str]) -> list[dict]:
         params = {"auth": token}
+        if self.v is not None:
+            params["v"] = self.v
+        if self.c is not None:
+            params["c"] = self.c
+        if self.pid is not None:
+            params["pid"] = self.pid
+
+        # Fallback to default v values if not explicitly provided
+        if "v" not in params:
+            if ticker:
+                params["v"] = "3"
+            else:
+                params["v"] = "1"
+
         if ticker:
-            params["v"] = "3"
             params["t"] = ticker  # query multiple tickers comma-separated
-        else:
-            params["v"] = "1"     # Market news ordered by time
         try:
             resp = requests.get(
                 NEWS_EXPORT_URL, params=params, timeout=self.request_timeout

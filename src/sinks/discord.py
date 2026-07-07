@@ -44,6 +44,7 @@ class DiscordSink(Sink):
         avatar_url: Optional[str] = None,
         rate_limit_sleep: float = 1.0,
         request_timeout: float = 10.0,
+        allowed_sources: Optional[list[str]] = None,
     ):
         self.name = name
         self.webhook_env_var = webhook_env_var
@@ -58,10 +59,13 @@ class DiscordSink(Sink):
         self.avatar_url = avatar_url
         self.rate_limit_sleep = rate_limit_sleep
         self.request_timeout = request_timeout
+        self.allowed_sources = allowed_sources
 
     # --- routing ----------------------------------------------------------
 
     def accepts(self, item: NewsItem) -> bool:
+        if self.allowed_sources is not None and item.source not in self.allowed_sources:
+            return False
         return _RANK.get(item.urgency, 0) >= _RANK[self.min_urgency]
 
     # --- delivery ---------------------------------------------------------

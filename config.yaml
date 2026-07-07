@@ -34,29 +34,35 @@ llm:
     Lead with the ticker. State the fact, not hype. No emoji.
 
 sources:
-  finviz_news:
+  finviz_market:
+    type: finviz_news
+    v: "1"
     watchlist: []
     mode: news_export        # news_export | html_fallback
     max_items_per_fetch: 50
-  # v2 — uncomment when FinvizScreenerSource is built (§6.1):
-  # finviz_screener:
-  #   screener_url: "https://elite.finviz.com/screener.ashx?v=111&f=..."
-  #   max_items_per_fetch: 50
+  finviz_stocks:
+    type: finviz_news
+    v: "3"
+    watchlist: []
+    mode: news_export        # news_export | html_fallback
+    max_items_per_fetch: 50
 
 sinks:
   discord_news:
+    type: discord
     webhook_env_var: DISCORD_NEWS_WEBHOOK_URL
-    min_urgency: low                 # gets everything kept
+    min_urgency: low                 # gets everything kept from market news
+    allowed_sources: ["finviz_market"]
     # username: "Anuradha_1ka2_"
     # avatar_url: "https://canvas-lb.tubitv.com/opts/-gL39FOGnXmsXQ==/88c87902-0d6d-40ef-93b4-93be17d6d770/CJ4GEMADOgUxLjEuOQ=="  # optional: link to a custom image URL
     rate_limit_sleep: 1.0
-  # v1.1 — add a second Discord channel for high-urgency only.
-  # Purely additive: create the webhook, set the env var, keep this block.
-  # discord_urgent:
-  #   webhook_env_var: DISCORD_URGENT_WEBHOOK_URL
-  #   min_urgency: high                # gets only urgency == high
-  #   username: "🚨 Urgent"
-  #   rate_limit_sleep: 1.0
+  discord_stocks:
+    type: discord
+    webhook_env_var: DISCORD_STOCKS_WEBHOOK_URL
+    min_urgency: low                 # gets everything kept from stocks news
+    allowed_sources: ["finviz_stocks"]
+    # username: "Stock Alerts"
+    rate_limit_sleep: 1.0
 
 dedupe:
   prune_older_than_days: 120

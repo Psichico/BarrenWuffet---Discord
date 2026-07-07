@@ -31,6 +31,20 @@ def test_accepts_routes_by_min_urgency(monkeypatch):
     assert urgent.accepts(_item("high")) is True
 
 
+def test_accepts_filters_by_allowed_sources(monkeypatch):
+    monkeypatch.setenv("W", "http://hook")
+    sink = DiscordSink(
+        "discord_market",
+        "W",
+        allowed_sources=["finviz_market"]
+    )
+    item_market = NewsItem(id="1", source="finviz_market", headline="A", url="h", keep=True)
+    item_stocks = NewsItem(id="2", source="finviz_stocks", headline="B", url="h", keep=True)
+
+    assert sink.accepts(item_market) is True
+    assert sink.accepts(item_stocks) is False
+
+
 def test_deliver_posts_and_returns_true(monkeypatch):
     monkeypatch.setenv("W", "http://hook")
     posted = {}

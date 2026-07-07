@@ -20,6 +20,8 @@ SOURCE_REGISTRY = {
 
 
 def build_source(name: str, cfg: dict) -> Source:
-    if name not in SOURCE_REGISTRY:
-        raise ValueError(f"Unknown source: {name}")
-    return SOURCE_REGISTRY[name](**cfg)
+    source_type = cfg.get("type", name)
+    if source_type not in SOURCE_REGISTRY:
+        raise ValueError(f"Unknown source type: {source_type} (for instance {name})")
+    constructor_cfg = {k: v for k, v in cfg.items() if k != "type"}
+    return SOURCE_REGISTRY[source_type](name=name, **constructor_cfg)
