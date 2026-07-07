@@ -53,7 +53,7 @@ class FinvizNewsSource(Source):
         name: str = "finviz_news",
         watchlist: Optional[list[str]] = None,
         mode: str = "news_export",
-        max_items_per_fetch: int = 50,
+        max_items_per_fetch: Optional[int] = None,
         request_timeout: float = 15.0,
         polite_sleep: float = 0.5,
         v: Optional[str] = None,
