@@ -15,6 +15,10 @@ services:
         sync: false            # set in dashboard, never in git
       - key: DISCORD_NEWS_WEBHOOK_URL
         sync: false
+      - key: DISCORD_STOCKS_WEBHOOK_URL
+        sync: false
+      - key: DISCORD_INSIDERS_WEBHOOK_URL
+        sync: false
       - key: DISCORD_URGENT_WEBHOOK_URL
         sync: false            # v1.1 — optional until you add the urgent channel
       - key: ANTHROPIC_API_KEY
