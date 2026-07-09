@@ -1,9 +1,8 @@
 services:
   - type: worker
     name: news-bot
-    runtime: python            # or "docker" if using the Dockerfile
+    runtime: docker
     plan: starter              # smallest paid worker; free tier does not keep workers alive 24/7
-    buildCommand: "pip install -r requirements.txt"
     startCommand: "python -m src.main"
     autoDeploy: true
     disk:
@@ -25,3 +24,19 @@ services:
         sync: false
       - key: DEDUPE_PATH
         value: /var/data/seen.db
+
+  - type: worker
+    name: reddit-bot
+    runtime: docker
+    plan: starter
+    startCommand: "python -m scripts.reddit.reddit_bot"
+    autoDeploy: true
+    envVars:
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: REDDIT_DISCORD_CHANNEL_ID
+        sync: false
+      - key: REDDIT_PROXY
+        sync: false            # Optional: your residential proxy user:pass@ip:port
+      - key: REDDIT_HEADLESS
+        value: "true"
