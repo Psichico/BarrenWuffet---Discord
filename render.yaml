@@ -3,7 +3,7 @@ services:
     name: news-bot
     runtime: docker
     plan: starter              # smallest paid worker; free tier does not keep workers alive 24/7
-    startCommand: "python -m src.main"
+    dockerCommand: "python -m src.main"
     autoDeploy: true
     disk:
       name: news-bot-data
@@ -29,7 +29,7 @@ services:
     name: reddit-bot
     runtime: docker
     plan: starter
-    startCommand: "python -m scripts.reddit.reddit_bot"
+    dockerCommand: "python -m scripts.reddit.reddit_bot"
     autoDeploy: true
     envVars:
       - key: DISCORD_BOT_TOKEN
