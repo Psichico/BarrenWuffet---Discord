@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  MINIMAL-CREATIVE INVESTOR REPORT  ·  REUSABLE TEMPLATE (Refactored)
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face {
+    font-family: "Archivo";
+    src: url("fonts/Archivo.ttf") format("truetype");
+    font-weight: 100 900;
+    font-stretch: 75% 125%;
+  }
+  @font-face {
+    font-family: "Space Mono";
+    src: url("fonts/SpaceMono-Regular.ttf") format("truetype");
+    font-weight: 400;
+  }
+  @font-face {
+    font-family: "Space Mono";
+    src: url("fonts/SpaceMono-Bold.ttf") format("truetype");
+    font-weight: 700;
+  }
+
+  :root {
+    --ink: #0A0A0A;
+    --paper: #FFFFFF;
+    --accent: #B22222;
+    --accent-deep: #7F1414;
+    --muted: #6B6B6B;
+    --gridline: #E6E6E6;
+    --hair: #0A0A0A;
+    --sans: "Archivo", "Liberation Sans", Arial, sans-serif;
+    --mono: "Space Mono", "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  
+  @page {
+    size: 8.5in 11in;
+    margin: 1in;
+  }
+  
+  html, body { margin: 0; padding: 0; }
+  body {
+    color: var(--ink);
+    background: var(--paper);
+    font-family: var(--mono);
+    font-size: 10pt;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .cover-page {
+    position: relative;
+    height: 8in; /* Less than 11in to account for margins */
+    page-break-after: always;
+  }
+
+  .content-section {
+    page-break-inside: avoid;
+    margin-bottom: 30pt;
+  }
+
+  /* ---------- shared atoms ---------- */
+  .wordmark {
+    font-family: var(--sans);
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 13pt;
+    line-height: 1.04;
+    letter-spacing: 0.02em;
+  }
+  .runhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    font-family: var(--mono);
+    font-size: 8pt;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 15pt;
+  }
+  .rule-thick { border: none; border-top: 2.5pt solid var(--ink); margin: 7pt 0 13pt; }
+  .rule-hair  { border: none; border-top: 0.75pt solid var(--hair); margin: 0; }
+
+  .section-title {
+    font-family: var(--sans);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 15pt;
+    letter-spacing: 0.01em;
+    margin: 0;
+    page-break-after: avoid;
+  }
+  .label {
+    font-family: var(--sans);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 10.5pt;
+    letter-spacing: 0.03em;
+    margin: 12pt 0 6pt;
+  }
+  p { margin: 0 0 9pt; }
+  .muted { color: var(--muted); }
+  .accent { color: var(--accent); }
+  b, strong { font-weight: 700; font-family: var(--sans); }
+  ul { margin: 0 0 9pt 0; padding-left: 15pt; }
+  li { margin-bottom: 6pt; }
+
+  /* ---------- cover ---------- */
+  .cover-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .cover-meta { text-align: right; font-size: 8.5pt; color: var(--muted); letter-spacing: 0.03em; }
+  .cover-title {
+    font-family: var(--sans);
+    font-weight: 800;
+    font-size: 42pt;
+    line-height: 0.98;
+    letter-spacing: -0.015em;
+    margin: 0;
+  }
+  .cover-sub {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 16pt;
+    margin: 14pt 0 0;
+    letter-spacing: 0.005em;
+  }
+  .ticker-line {
+    font-family: var(--mono);
+    font-size: 11pt;
+    margin-top: 10pt;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  .rating-chip {
+    display: inline-block;
+    font-family: var(--sans);
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 20pt;
+    letter-spacing: 0.06em;
+    color: #fff;
+    background: var(--accent);
+    padding: 8pt 20pt 7pt;
+  }
+  .rating-chip.buy { background: var(--ink); }
+  .rating-chip.hold { background: var(--muted); }
+  .rating-chip.sell { background: var(--accent); }
+
+  .cover-foot {
+    display: flex;
+    justify-content: space-between;
+    font-size: 8.5pt;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .cover-foot b { color: var(--ink); }
+
+  /* ---------- two-column case ---------- */
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 26pt; }
+  
+  .footnote {
+    font-size: 7pt;
+    color: var(--muted);
+    line-height: 1.45;
+    margin-top: 20pt;
+  }
+  
+  /* markdown styling */
+  .markdown-content { margin-bottom: 20pt; }
+  .markdown-content h3 { font-family: var(--sans); font-size: 14pt; font-weight: 700; margin-top: 16pt; margin-bottom: 8pt; border-bottom: 1px solid var(--gridline); padding-bottom: 4pt; page-break-after: avoid; }
+  .markdown-content h4 { font-family: var(--sans); font-size: 11pt; font-weight: 700; margin-top: 12pt; margin-bottom: 4pt; page-break-after: avoid; }
+  .markdown-content p { margin-bottom: 10pt; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<!-- ============================ PAGE 1 — COVER ============================ -->
+<div class="cover-page">
+  <div class="cover-top">
+    <div class="wordmark">BarrenWuffet's<br>Research</div>
+    <div class="cover-meta">
+      INVESTOR BRIEFING<br>
+      {{DATE}}<br>
+      CONFIDENTIAL
+    </div>
+  </div>
+
+  <div style="margin-top:150pt;">
+    <div class="ticker-line">{{TICKER_FULL}}</div>
+    <h1 class="cover-title">{{COMPANY_NAME}}</h1>
+    <div class="cover-sub">Deep-Dive Equity Research & Recommendation</div>
+  </div>
+
+  <div style="margin-top:46pt; display:flex; align-items:center; gap:22pt;">
+    <span class="rating-chip {{RATING_CLASS}}">{{RATING}}</span>
+    <div style="font-size:9pt; line-height:1.5;">
+      <span class="muted">FINAL RATING — PORTFOLIO COMMITTEE</span><br>
+      <span class="muted">HORIZON:</span> {{TIMEFRAME}} &nbsp;&nbsp;|&nbsp;&nbsp; <span class="muted">CONVICTION:</span> {{CONFIDENCE}}<br>
+      {{ONE_LINE_THESIS}}
+    </div>
+  </div>
+
+  <div style="position:absolute; left:0; right:0; bottom:0;">
+    <hr class="rule-hair" style="margin-bottom:14pt;">
+    <div class="cover-foot">
+      <div><b>Prepared for</b><br>Portfolio Investment Committee</div>
+      <div><b>Coverage</b><br>Market · Sentiment · Fundamentals · Macro · Risk</div>
+      <div style="text-align:right;"><b>Report date</b><br>{{DATE}}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CONTENT ===================== -->
+
+<div class="content-section">
+  <h2 class="section-title">Fundamental Analysis</h2>
+  <hr class="rule-thick">
+  <div class="markdown-content">
+    {{FUNDAMENTALS}}
+  </div>
+</div>
+
+<div class="content-section">
+  <h2 class="section-title">Thesis Validation</h2>
+  <hr class="rule-thick">
+  <div class="markdown-content">
+    {{THESIS_VALIDATION}}
+  </div>
+</div>
+
+<div class="content-section">
+  <h2 class="section-title">Sector & Macro View</h2>
+  <hr class="rule-thick">
+  <div class="markdown-content">
+    {{SECTOR_MACRO}}
+  </div>
+</div>
+
+<div class="content-section">
+  <h2 class="section-title">Catalyst Watch</h2>
+  <hr class="rule-thick">
+  <div class="markdown-content">
+    {{CATALYSTS}}
+  </div>
+</div>
+
+<div class="content-section">
+  <h2 class="section-title">Investment Summary</h2>
+  <hr class="rule-thick">
+  <div class="markdown-content">
+    {{INVESTMENT_SUMMARY}}
+  </div>
+</div>
+
+<div class="footnote">
+  <hr class="rule-hair" style="margin-bottom:8pt;">
+  <b style="color:var(--ink);">Disclaimer.</b> Source: BarrenWuffet data pipeline. For informational purposes only; not investment advice.
+</div>
+
+</body>
+</html>

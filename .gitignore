@@ -1,5 +1,6 @@
 # Secrets
 .env
+output/
 
 # Dedupe store
 *.db

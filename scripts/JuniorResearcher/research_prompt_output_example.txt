@@ -1,0 +1,57 @@
+**Stock Ticker / Company Name:** BE / Bloom Energy
+**Investment Thesis:** Short Term 1-2 Years
+**Goal:** To figure out where this stock will be within 12 months
+
+### 1. Fundamental Analysis
+
+* **Revenue, Margins, & FCF:** Q2 2026 delivered record revenue of $1.065 billion (+166% YoY), driven by a 215% surge in product revenue. Non-GAAP gross margin expanded significantly to 34.3% (up from 28.2% in Q2 2025). The company has successfully inflected to positive cash generation, posting $226.4 million in Q2 operating cash flow.
+* **Valuation Metrics:** Trailing EV/EBITDA sits at an elevated 288.9x, indicating the market has rapidly priced in massive forward growth expectations. However, independent DCF models suggest the stock could still be undervalued by ~41% against its future cash generation potential.
+* **Insider Ownership & Trades:** Recent open-market insider activity is minimal. Chief Commercial Officer Aman Joshi executed a small planned sale of ~$137,000 in July 2026, which is largely immaterial against the broader corporate structure and prior executive stock awards.
+
+### 2. Thesis Validation
+
+* **Arguments Supporting the Thesis:**
+1. **AI Hyperscaler Adoption:** Bloom is now the standard for onsite AI power, having been validated and approved by all major US hyperscalers and over a dozen neoclouds/AI labs.
+2. **Aggressive Guidance Raises:** Management raised full-year 2026 revenue guidance to $3.9B–$4.2B, representing ~100% YoY growth, showcasing unprecedented near-term visibility.
+3. **Powerful Operating Leverage:** Non-GAAP operating income surged to $239.6 million in Q2 2026 from $28.6 million in Q2 2025, proving the company can scale revenue vastly faster than its fixed costs.
+
+
+* **Counter-Arguments / Key Risks:**
+1. **Stretched Multiples:** The 288x trailing EV/EBITDA multiple leaves zero room for execution error or supply chain delays.
+2. **Grid Defection Pushback:** Rapid scaling of onsite natural gas fuel cells may face localized regulatory pushback regarding emissions, pending full transitions to hydrogen fuel.
+
+
+* **Final Verdict:** **Bullish**. The sheer velocity of AI data center energy demand has transformed Bloom from a niche green-tech play into a critical, high-margin infrastructure provider.
+
+### 3. Sector & Macro View
+
+* **Sector Overview:** The alternative energy sector has bifurcated. While residential solar struggles, commercial-scale onsite power generation is booming as a necessity to bypass utility backlogs.
+* **Macroeconomic Trends:** Global grid infrastructure is currently incapable of supporting the exponential power requirements of generative AI data centers. "Time-to-power" is now the primary bottleneck for tech giants.
+* **Competitive Positioning:** Bloom Energy holds a definitive first-mover advantage in utility-scale solid-oxide fuel cells. They provide baseload, always-on power that intermittent renewables (solar/wind) cannot, effectively replacing diesel generators and grid reliance for hyperscalers.
+
+### 4. Catalyst Watch
+
+* **Upcoming Short-Term Catalysts:**
+* Q3 2026 Earnings (Late October 2026) to validate the sustainability of the $1B+ quarterly revenue run rate.
+* Further public contract announcements with Tier-1 AI hyperscalers.
+
+
+* **Upcoming Long-Term Catalysts:**
+* Subsidies or tax credits related to the deployment of hydrogen-ready fuel cells.
+* Expansion of manufacturing capacity to work through the massive multi-billion dollar backlog.
+
+
+
+### 5. Investment Summary
+
+* **Thesis Summary:**
+* AI data center demand has fundamentally altered BE's growth trajectory, driving ~100% YoY revenue growth expected for FY2026.
+* Profitability is accelerating, with Q2 2026 non-GAAP gross margins hitting 34.3%.
+* The company is now generating strong positive operating cash flow ($226.4M in Q2).
+* BE serves as the primary solution to the global macro problem of grid delays for AI factories.
+* While trailing multiples are high, forward metrics and DCF valuations justify the premium.
+
+
+* **Final Recommendation:** Buy
+* **Confidence Level:** High
+* **Expected Timeframe:** 12 months
