@@ -29,9 +29,15 @@ services:
   - type: worker
     name: junior-researcher-bot
     runtime: python
-    buildCommand: "pip install -r requirements.txt && playwright install chromium"
+    # GITHUB_TOKEN must be a PAT with read access to the private stockdb repo.
+    # Rewriting the URL via git config (not inline in requirements.txt) is what
+    # lets the shell expand ${GITHUB_TOKEN} — pip does not expand env vars in
+    # requirements file contents.
+    buildCommand: "git config --global url.\"https://${GITHUB_TOKEN}@github.com/\".insteadOf \"https://github.com/\" && pip install -r requirements.txt -r scripts/JuniorResearcher/requirements.txt && playwright install chromium"
     startCommand: "python scripts/JuniorResearcher/researcher_bot.py"
     autoDeploy: true
     envVars:
       - key: PLAYWRIGHT_BROWSERS_PATH
         value: "0"
+      - key: GITHUB_TOKEN
+        sync: false            # set in dashboard — PAT with read access to HirkshireBathaway---Database

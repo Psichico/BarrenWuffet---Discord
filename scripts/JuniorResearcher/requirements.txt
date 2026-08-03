@@ -1,0 +1,3 @@
+git+https://github.com/Psichico/HirkshireBathaway---Database.git#egg=stockdb
+google-genai
+markdown
