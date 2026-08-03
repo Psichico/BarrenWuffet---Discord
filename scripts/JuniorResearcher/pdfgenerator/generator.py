@@ -34,6 +34,57 @@ def extract_section(text, start_header, next_header=None):
         return match.group(1).strip()
     return ""
 
+
+_RATING_KEYWORDS = [
+    (re.compile(r"\bstrong\s+buy\b|\baccumulate\b|\bbuy\b|\bbullish\b", re.IGNORECASE), "Buy"),
+    (re.compile(r"\breduce\b|\btrim\b|\bsell\b|\bbearish\b", re.IGNORECASE), "Sell"),
+    (re.compile(r"\bhold\b|\bneutral\b", re.IGNORECASE), "Hold"),
+]
+
+
+def _classify_rating_text(text):
+    """Maps a short rating phrase (e.g. 'Strong Buy', 'Bearish') to Buy/Sell/Hold."""
+    for pattern, label in _RATING_KEYWORDS:
+        if pattern.search(text):
+            return label
+    return None
+
+
+def extract_rating(summary_text, raw_text, ticker="UNKNOWN"):
+    """Extracts the final Buy/Hold/Sell rating, preferring the Investment Summary
+    section and falling back to the full report text. Returns (rating, rating_class).
+    Defaults to Hold only when no rating signal can be found anywhere, and logs
+    that miss so it's visible instead of silent."""
+    label_pattern = (
+        r"(?:^|\n)\s*(?:[-*•]\s*)?(?:\d\.\s*)?\*{0,2}"
+        r"(?:Final\s+)?(?:Recommendation|Rating|Verdict)\*{0,2}\s*:?\s*\*{0,2}\s*(.*?)$"
+    )
+
+    for candidate_text in (summary_text, raw_text):
+        if not candidate_text:
+            continue
+        match = re.search(label_pattern, candidate_text, re.MULTILINE | re.IGNORECASE)
+        if match:
+            rating_phrase = re.sub(r"[\*`|]+", " ", match.group(1)).strip()
+            label = _classify_rating_text(rating_phrase)
+            if label:
+                return label, label.lower()
+
+    # Last resort: scan the summary section itself for a standalone rating word,
+    # taking the last match by position since the verdict tends to appear near the end.
+    if summary_text:
+        last_label, last_pos = None, -1
+        for pattern, label in _RATING_KEYWORDS:
+            for m in pattern.finditer(summary_text):
+                if m.start() > last_pos:
+                    last_pos, last_label = m.start(), label
+        if last_label:
+            return last_label, last_label.lower()
+
+    print(f"WARNING: Could not parse a rating for {ticker} from LLM output; defaulting to Hold. "
+          f"Summary snippet: {(summary_text or raw_text or '')[:200]!r}")
+    return "Hold", "hold"
+
 def parse_report_data(raw_text):
     """Extracts variables and sections from the LLM markdown output."""
     data = {
@@ -76,24 +127,7 @@ def parse_report_data(raw_text):
     confidence_match = re.search(r"(?:\d\.\s*)?(?:\*\*|)Confidence (?:L|l)evel:?(?:\*\*|) (.*?)$", raw_text, re.MULTILINE | re.IGNORECASE)
     if confidence_match:
         data["confidence"] = confidence_match.group(1).strip()
-        
-    rating_match = re.search(r"(?:\d\.\s*)?(?:\*\*|)Final (?:R|r)ecommendation:?(?:\*\*|) (.*?)$", raw_text, re.MULTILINE | re.IGNORECASE)
-    if not rating_match:
-        rating_match = re.search(r"(?:\*\*|)Final (?:V|v)erdict:?(?:\*\*|) (.*?)$", raw_text, re.MULTILINE | re.IGNORECASE)
-    if rating_match:
-        rating = rating_match.group(1).strip().capitalize()
-        # Clean up any trailing asterisks
-        rating = re.sub(r'\*+', '', rating).strip()
-        if "Buy" in rating or "Bullish" in rating:
-            data["rating"] = "Buy"
-            data["rating_class"] = "buy"
-        elif "Sell" in rating or "Bearish" in rating:
-            data["rating"] = "Sell"
-            data["rating_class"] = "sell"
-        else:
-            data["rating"] = "Hold"
-            data["rating_class"] = "hold"
-            
+
     # Attempt to grab a one line thesis (usually from thesis summary)
     thesis_lines = extract_section(raw_text, r"(?:\*\*|\#+\s*)?(?:1\.\s*)?(?:5-bullet )?investment thesis summary:?(?:\*\*|)", r"(?:\*\*|\#+\s*)?(?:\d\.\s*)?Final (?:R|r)ecommendation").split('\n')
     for line in thesis_lines:
@@ -112,7 +146,9 @@ def parse_report_data(raw_text):
     summary_raw = extract_section(raw_text, r"(?:\#+\s*)?(?:5\.\s*)?Investment Summary", r"(?:\#+\s*)?Conclusion")
     if not summary_raw:
         summary_raw = extract_section(raw_text, r"(?:\#+\s*)?(?:5\.\s*)?Investment Summary")
-        
+
+    data["rating"], data["rating_class"] = extract_rating(summary_raw, raw_text, ticker=data["ticker_only"] or "UNKNOWN")
+
     summary_clean = re.sub(r"(?:\d\.\s*)?(?:\*\*|)(?:Final Recommendation|Final Verdict):?(?:\*\*|).*", "", summary_raw, flags=re.MULTILINE|re.IGNORECASE)
     summary_clean = re.sub(r"(?:\d\.\s*)?(?:\*\*|)Confidence Level:?(?:\*\*|).*", "", summary_clean, flags=re.MULTILINE|re.IGNORECASE)
     summary_clean = re.sub(r"(?:\d\.\s*)?(?:\*\*|)Expected Timeframe:?(?:\*\*|).*", "", summary_clean, flags=re.MULTILINE|re.IGNORECASE)

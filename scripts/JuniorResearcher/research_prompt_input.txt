@@ -25,6 +25,7 @@ You MUST generate a comprehensive report that includes ALL 5 of the following se
 - Present 3 arguments supporting the thesis
 - Highlight 2 counter-arguments or key risks
 - Provide a final verdict: Bullish / Bearish / Neutral with justification
+- Avoid defaulting to Neutral purely due to minor data gaps — form a directional view from the data that IS available; only choose Neutral if the bull and bear cases are genuinely balanced
 
 3. Sector & Macro View
 - Give a short sector overview
@@ -37,9 +38,10 @@ You MUST generate a comprehensive report that includes ALL 5 of the following se
 
 5. Investment Summary
 - 5-bullet investment thesis summary
-- Final recommendation: Buy / Hold / Sell
+- Final recommendation: Buy / Hold / Sell — commit to a clear direction; reserve Hold for cases with truly balanced risk/reward, not as a default safe choice
 - Confidence level (High / Medium / Low)
 - Expected timeframe (e.g. 6–12 months)
+- Current Stock Price vs Expected Stock Price in next 10-12 months. (% upside/downside).
 
 Formatting Requirements
 - Use markdown
