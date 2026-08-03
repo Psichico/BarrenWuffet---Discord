@@ -14,6 +14,11 @@ def parse_markdown_to_html(md_text):
     if not md_text:
         return ""
     
+    # Python-markdown requires a blank line before lists. LLMs often miss this.
+    # We force a blank line before any bullet point that immediately follows text.
+    import re
+    md_text = re.sub(r'([^\n])\n(\s*[-*]\s)', r'\1\n\n\2', md_text)
+    
     # Use the markdown package to render robust HTML
     html = markdown.markdown(md_text, extensions=['extra', 'sane_lists'])
     
