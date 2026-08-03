@@ -53,7 +53,10 @@ async def on_ready():
 @bot.command(name="research")
 async def research(ctx, ticker: str):
     """Researches a stock ticker using an LLM and generates a PDF report."""
-    msg = await ctx.send(f"🔍 Fetching live data, cleaning, and computing for **{ticker}**. This might take a while...")
+    default_msg = "🔍 Fetching live data, cleaning, and computing for **{ticker}**. This might take a while..."
+    custom_msg = os.getenv("DISCORD_LOADING_MESSAGE", default_msg)
+    msg_text = custom_msg.replace("{ticker}", ticker)
+    msg = await ctx.send(msg_text)
 
     try:
         # Load prompt template from the same directory as the script
