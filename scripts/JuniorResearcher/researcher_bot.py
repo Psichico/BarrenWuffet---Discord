@@ -53,8 +53,7 @@ async def on_ready():
 @bot.command(name="research")
 async def research(ctx, ticker: str):
     """Researches a stock ticker using an LLM and generates a PDF report."""
-    provider_name = LLM_PROVIDER.upper()
-    msg = await ctx.send(f"🔍 Fetching live data and researching **{ticker}** using {provider_name}... This might take a minute.")
+    msg = await ctx.send(f"🔍 Fetching live data, cleaning, and computing for **{ticker}**. This might take a while...")
 
     try:
         # Load prompt template from the same directory as the script
