@@ -1,15 +1,10 @@
 import sys
 import os
 from datetime import date
-
-# Ensure the database project is in the python path
-DB_PATH = r"J:\Antigravity\Richie Rich\HerkshireBathaway - Database"
-if DB_PATH not in sys.path:
-    sys.path.insert(0, DB_PATH)
-
-# Load the database's environment variables for connection strings
 from dotenv import load_dotenv
-load_dotenv(os.path.join(DB_PATH, ".env"))
+
+# Load local environment variables (if they exist)
+load_dotenv()
 
 from stockdb.agent_api import get_snapshot
 
