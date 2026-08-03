@@ -32,3 +32,6 @@ services:
     buildCommand: "pip install -r requirements.txt && playwright install chromium"
     startCommand: "python scripts/JuniorResearcher/researcher_bot.py"
     autoDeploy: true
+    envVars:
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: "0"
