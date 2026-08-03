@@ -92,3 +92,4 @@ websockets==16.0
 wsproto==1.3.2
 yarl==1.24.2
 git+https://${GITHUB_TOKEN}@github.com/Psichico/HirkshireBathaway---Database.git#egg=stockdb
+google-genai
