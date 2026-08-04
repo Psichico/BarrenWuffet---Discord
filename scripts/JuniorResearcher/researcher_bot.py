@@ -5,6 +5,7 @@ from openai import AsyncOpenAI
 from google import genai
 import asyncio
 import io
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 # Ensure we can import the copied pdfgenerator
@@ -26,6 +27,7 @@ LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:1234/v1")
 LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "deepseek-r1-distill-qwen-7b")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+REPORT_CACHE_DAYS = float(os.getenv("REPORT_CACHE_DAYS", "3"))
 
 # Initialize Discord Bot
 intents = discord.Intents.default()
@@ -50,9 +52,39 @@ async def on_ready():
     print(f'Logged in as {bot.user.name}')
     print(f'Using {LLM_PROVIDER.upper()} for research generation.')
 
+def _report_filename(ticker: str) -> str:
+    return f"{ticker}_Research_Report.pdf"
+
+async def find_recent_report(channel, ticker: str):
+    """
+    Look back through this channel's recent history for a PDF report the bot
+    already posted for this ticker within REPORT_CACHE_DAYS. Sourcing this from
+    Discord itself (rather than a local index) means it stays correct across
+    restarts/redeploys with no extra persistence needed.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=REPORT_CACHE_DAYS)
+    target_filename = _report_filename(ticker).upper()
+    async for message in channel.history(after=cutoff, limit=1000, oldest_first=False):
+        if message.author.id != bot.user.id:
+            continue
+        for attachment in message.attachments:
+            if attachment.filename.upper() == target_filename:
+                return message
+    return None
+
 @bot.command(name="research")
 async def research(ctx, ticker: str):
     """Researches a stock ticker using an LLM and generates a PDF report."""
+    ticker = ticker.upper()
+
+    cached_message = await find_recent_report(ctx.channel, ticker)
+    if cached_message:
+        await cached_message.reply(
+            f"📄 Here you go! **{ticker}** was already researched in the last "
+            f"{REPORT_CACHE_DAYS:g} days — no need to regenerate."
+        )
+        return
+
     default_msg = "🔍 Fetching live data, cleaning, and computing for **{ticker}**. This might take a while..."
     custom_msg = os.getenv("DISCORD_LOADING_MESSAGE", default_msg)
     msg_text = custom_msg.replace("{ticker}", ticker)
@@ -128,7 +160,6 @@ async def research(ctx, ticker: str):
         pdf_bytes = await asyncio.to_thread(generate_pdf_report_bytes, data, ticker)
         
         # Save both MD and PDF to local output directory
-        from datetime import datetime
         dt_str = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_dir = os.path.join(root_dir, "output", "reports", f"{ticker}_{dt_str}")
         os.makedirs(report_dir, exist_ok=True)
@@ -144,7 +175,7 @@ async def research(ctx, ticker: str):
         print(f"Saved {ticker} reports to {report_dir}")
         
         # Send back to Discord
-        pdf_file = discord.File(fp=io.BytesIO(pdf_bytes), filename=f"{ticker}_Research_Report.pdf")
+        pdf_file = discord.File(fp=io.BytesIO(pdf_bytes), filename=_report_filename(ticker))
         
         await msg.delete()
         await ctx.send(content=f"✅ Here is your research report for **{ticker}**:", file=pdf_file)

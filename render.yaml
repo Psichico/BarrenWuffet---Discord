@@ -41,3 +41,5 @@ services:
         value: "0"
       - key: GITHUB_TOKEN
         sync: false            # set in dashboard — PAT with read access to HirkshireBathaway---Database
+      - key: REPORT_CACHE_DAYS
+        value: "3"             # !research skips regenerating if a PDF for the ticker was already posted within this window
