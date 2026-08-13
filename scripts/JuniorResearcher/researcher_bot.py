@@ -98,7 +98,18 @@ async def research(ctx, ticker: str):
         
         # Fetch live data from the database
         db_data = fetch_db_data(ticker)
-        
+
+        # fetch_db_data() returns a plain sentinel string (rather than raising)
+        # when stockDB has nothing for this symbol - fail loudly here instead of
+        # silently asking the LLM to write a report about a ticker that doesn't exist.
+        if db_data.startswith("No data found in stockDB for") or db_data.startswith("Error fetching from stockDB:"):
+            await msg.delete()
+            await ctx.reply(
+                f"❌ **{ticker}** doesn't look like a valid ticker to me — I couldn't find any "
+                f"market data for it. Double-check the symbol and try again."
+            )
+            return
+
         # Inject data into prompt
         prompt = prompt_template.replace("{TICKER}", ticker)
         prompt = prompt.replace("{FINVIZ_DATA}", db_data)
