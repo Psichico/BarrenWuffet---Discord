@@ -62,6 +62,42 @@ def test_html_login_page_treated_as_auth_failure(monkeypatch):
     assert src.fetch() == []
 
 
+def test_pid_omitted_when_watchlist_only_unset(monkeypatch):
+    monkeypatch.setenv("FINVIZ_AUTH_TOKEN", "tok")
+    monkeypatch.delenv("WATCHLIST_ONLY", raising=False)
+    captured = {}
+
+    def fake_get(url, params=None, timeout=None):
+        captured["params"] = params
+        return _FakeResp(CSV_FIXTURE)
+
+    monkeypatch.setattr(finviz_mod.requests, "get", fake_get)
+    monkeypatch.setattr(finviz_mod.time, "sleep", lambda *_: None)
+
+    src = FinvizNewsSource(pid="12345", watchlist=[], max_items_per_fetch=50)
+    src.fetch()
+
+    assert "pid" not in captured["params"]
+
+
+def test_pid_included_when_watchlist_only_enabled(monkeypatch):
+    monkeypatch.setenv("FINVIZ_AUTH_TOKEN", "tok")
+    monkeypatch.setenv("WATCHLIST_ONLY", "1")
+    captured = {}
+
+    def fake_get(url, params=None, timeout=None):
+        captured["params"] = params
+        return _FakeResp(CSV_FIXTURE)
+
+    monkeypatch.setattr(finviz_mod.requests, "get", fake_get)
+    monkeypatch.setattr(finviz_mod.time, "sleep", lambda *_: None)
+
+    src = FinvizNewsSource(pid="12345", watchlist=[], max_items_per_fetch=50)
+    src.fetch()
+
+    assert captured["params"]["pid"] == "12345"
+
+
 def test_network_error_returns_empty(monkeypatch):
     monkeypatch.setenv("FINVIZ_AUTH_TOKEN", "tok")
 

@@ -45,6 +45,12 @@ _COLUMN_ALIASES = {
 }
 
 
+def _watchlist_only() -> bool:
+    """Read live (not cached) so a Render dashboard env var change takes effect
+    on the next poll with no restart needed."""
+    return os.environ.get("WATCHLIST_ONLY", "0").strip() == "1"
+
+
 class FinvizNewsSource(Source):
     name = "finviz_news"
 
@@ -111,7 +117,10 @@ class FinvizNewsSource(Source):
             params["v"] = self.v
         if self.c is not None:
             params["c"] = self.c
-        if self.pid is not None:
+        # pid (portfolio-scoped filtering) is only honored when WATCHLIST_ONLY=1,
+        # so a configured pid is inert by default and doesn't silently narrow the
+        # feed until explicitly opted into via env var (Render dashboard toggle).
+        if self.pid is not None and _watchlist_only():
             params["pid"] = self.pid
 
         # Fallback to default v values if not explicitly provided

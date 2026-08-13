@@ -25,6 +25,14 @@ services:
         sync: false
       - key: DEDUPE_PATH
         value: /var/data/seen.db
+      - key: WATCHLIST_ONLY
+        value: "0"              # 1 = scope finviz_stocks to the Finviz portfolio (PID 1001063054); 0 = today's unscoped feed
+      - key: DISCORD_NEWS_MIN_URGENCY
+        value: low              # overrides config.yaml's discord_news min_urgency (low/medium/high)
+      - key: DISCORD_STOCKS_MIN_URGENCY
+        value: low              # overrides config.yaml's discord_stocks min_urgency (low/medium/high)
+      - key: DISCORD_INSIDERS_MIN_URGENCY
+        value: high             # overrides config.yaml's discord_insiders min_urgency (low/medium/high)
 
   - type: worker
     name: junior-researcher-bot

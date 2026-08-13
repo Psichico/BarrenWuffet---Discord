@@ -94,3 +94,35 @@ def test_missing_webhook_returns_false(monkeypatch):
     monkeypatch.delenv("MISSING", raising=False)
     sink = DiscordSink("discord_news", "MISSING", rate_limit_sleep=0)
     assert sink.deliver(_item()) is False
+
+
+def test_min_urgency_env_var_overrides_config_default(monkeypatch):
+    monkeypatch.setenv("W", "http://hook")
+    monkeypatch.setenv("MIN_URG", "high")
+    sink = DiscordSink("discord_news", "W", min_urgency="low",
+                       min_urgency_env_var="MIN_URG")
+
+    # Config default is "low" (accepts everything), but the env var raises the
+    # effective bar to "high".
+    assert sink.accepts(_item("low")) is False
+    assert sink.accepts(_item("medium")) is False
+    assert sink.accepts(_item("high")) is True
+
+
+def test_min_urgency_env_var_unset_falls_back_to_config(monkeypatch):
+    monkeypatch.setenv("W", "http://hook")
+    monkeypatch.delenv("MIN_URG_UNSET", raising=False)
+    sink = DiscordSink("discord_news", "W", min_urgency="low",
+                       min_urgency_env_var="MIN_URG_UNSET")
+
+    assert sink.accepts(_item("low")) is True
+
+
+def test_min_urgency_env_var_invalid_value_falls_back_to_config(monkeypatch):
+    monkeypatch.setenv("W", "http://hook")
+    monkeypatch.setenv("MIN_URG_BAD", "not-a-real-level")
+    sink = DiscordSink("discord_news", "W", min_urgency="low",
+                       min_urgency_env_var="MIN_URG_BAD")
+
+    # Garbage env var value never crashes or misroutes — falls back to config.
+    assert sink.accepts(_item("low")) is True

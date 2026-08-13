@@ -44,6 +44,7 @@ sources:
   finviz_stocks:
     type: finviz_news
     v: "3"
+    pid: "1001063054"        # only honored when WATCHLIST_ONLY=1 (env var, see render.yaml)
     watchlist: []
     mode: news_export        # news_export | html_fallback
     max_items_per_fetch: 50
@@ -57,6 +58,7 @@ sinks:
     type: discord
     webhook_env_var: DISCORD_NEWS_WEBHOOK_URL
     min_urgency: low                 # gets everything kept from market news
+    min_urgency_env_var: DISCORD_NEWS_MIN_URGENCY   # overrides min_urgency from Render dashboard
     allowed_sources: ["finviz_market"]
     # username: "Anuradha_1ka2_"
     # avatar_url: "https://canvas-lb.tubitv.com/opts/-gL39FOGnXmsXQ==/88c87902-0d6d-40ef-93b4-93be17d6d770/CJ4GEMADOgUxLjEuOQ=="  # optional: link to a custom image URL
@@ -65,6 +67,7 @@ sinks:
     type: discord
     webhook_env_var: DISCORD_STOCKS_WEBHOOK_URL
     min_urgency: low                 # gets everything kept from stocks news
+    min_urgency_env_var: DISCORD_STOCKS_MIN_URGENCY # overrides min_urgency from Render dashboard
     allowed_sources: ["finviz_stocks"]
     # username: "Stock Alerts"
     rate_limit_sleep: 1.0
@@ -72,6 +75,7 @@ sinks:
     type: discord
     webhook_env_var: DISCORD_INSIDERS_WEBHOOK_URL
     min_urgency: high
+    min_urgency_env_var: DISCORD_INSIDERS_MIN_URGENCY # overrides min_urgency from Render dashboard
     allowed_sources: ["finviz_insiders"]
     rate_limit_sleep: 1.0
 

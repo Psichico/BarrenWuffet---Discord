@@ -40,6 +40,7 @@ class DiscordSink(Sink):
         name: str,
         webhook_env_var: str,
         min_urgency: str = "low",
+        min_urgency_env_var: Optional[str] = None,
         username: Optional[str] = None,
         avatar_url: Optional[str] = None,
         rate_limit_sleep: float = 1.0,
@@ -55,6 +56,7 @@ class DiscordSink(Sink):
                 "it is configured.", webhook_env_var, name,
             )
         self.min_urgency = min_urgency if min_urgency in _RANK else "low"
+        self.min_urgency_env_var = min_urgency_env_var
         self.username = username
         self.avatar_url = avatar_url
         self.rate_limit_sleep = rate_limit_sleep
@@ -63,10 +65,20 @@ class DiscordSink(Sink):
 
     # --- routing ----------------------------------------------------------
 
+    def _effective_min_urgency(self) -> str:
+        """Read the env var override live (not cached), so a Render dashboard
+        change takes effect on the next poll with no restart needed. Falls back
+        to the config-file default if unset or holds an unrecognized value."""
+        if self.min_urgency_env_var:
+            override = os.environ.get(self.min_urgency_env_var, "").strip().lower()
+            if override in _RANK:
+                return override
+        return self.min_urgency
+
     def accepts(self, item: NewsItem) -> bool:
         if self.allowed_sources is not None and item.source not in self.allowed_sources:
             return False
-        return _RANK.get(item.urgency, 0) >= _RANK[self.min_urgency]
+        return _RANK.get(item.urgency, 0) >= _RANK[self._effective_min_urgency()]
 
     # --- delivery ---------------------------------------------------------
 
