@@ -33,9 +33,28 @@ Urgency rules (tag every KEPT item):
 For rewriting kept items:
 {rewrite_style}
 
+Each input item comes with a ticker tag supplied by the data feed, which is
+SOMETIMES WRONG (it can be stale, or lifted from an unrelated story in a broad
+market-news feed). For every item:
+- Read the headline and decide what company/ticker the story is ACTUALLY
+  about. If the supplied ticker matches, echo it back. If it's wrong or the
+  story isn't really about a specific ticker, output the correct ticker
+  instead, or "" if none applies. Never let a wrong ticker pass through.
+- Produce a "story_key": a short lowercase-hyphenated slug identifying the
+  underlying real-world EVENT, built only from (a) the true primary ticker/
+  company and (b) the core factual event type (e.g. "earnings", "sp500-
+  inclusion", "guidance-cut", "product-launch"). Deliberately EXCLUDE framing,
+  sentiment, or opinion words ("surge", "concerns", "finally", "after months
+  of speculation") — those vary between outlets covering the same event and
+  must not change the key. Two headlines about the same event, worded
+  differently, MUST produce the identical story_key.
+  Example: both of these should yield story_key "rddt-sp500-inclusion":
+    "RDDT — Reddit is joining the S&P 500. Analysts flag concerns."
+    "Reddit shares surge as S&P 500 inclusion is confirmed."
+
 You will receive a numbered list of news items. Respond with ONLY a JSON array,
 no prose, no markdown fences. One object per input item:
-{{"index": <int>, "keep": <bool>, "urgency": "high|medium|low", "reason": "<short>", "rewrite": "<string or empty>"}}
+{{"index": <int>, "keep": <bool>, "urgency": "high|medium|low", "reason": "<short>", "rewrite": "<string or empty>", "ticker": "<corrected ticker or empty>", "story_key": "<slug or empty>"}}
 - If keep is false, set urgency to "low" and rewrite to "".
 - If rewrite is disabled, set rewrite to "".
 """
@@ -153,6 +172,30 @@ class ClaudeFilter(Filter):
 
         rewrite = obj.get("rewrite", "") or ""
         item.rewritten = rewrite if (self.llm.rewrite and item.keep and rewrite) else None
+
+        # Ticker correction: Claude reads the actual headline content, so trust
+        # its judgment over the (sometimes wrong) feed-supplied ticker. Blank
+        # means "no specific ticker applies" — leave item.ticker as None rather
+        # than showing a bogus one.
+        ticker = str(obj.get("ticker", "") or "").strip().upper()[:10]
+        item.ticker = ticker or None
+
+        # story_key: used for cross-source/cross-poll duplicate-story detection
+        # in the orchestrator. Best-effort — a missing/blank key just means this
+        # item won't be matched against other stories, never a failure.
+        #
+        # KNOWN LIMITATION: the key intentionally omits date/time (see the
+        # prompt above) so reworded coverage of the same event still matches.
+        # The flip side: two genuinely distinct same-day/same-ticker/
+        # same-event-type stories (e.g. two separate TSLA product
+        # announcements) could collide and the second gets wrongly suppressed
+        # by SeenStore.has_recent_story() (src/dedupe.py) within its 24h
+        # window. If that's observed in practice, the fix is to make the key
+        # more specific (or add a fuzzy match) rather than reverting to
+        # id-only dedupe — see the plan history / CLAUDE.md §12.
+        story_key = str(obj.get("story_key", "") or "").strip().lower()
+        if story_key:
+            item.meta["story_key"] = story_key
 
     @staticmethod
     def _build_user_message(batch: list[NewsItem]) -> str:

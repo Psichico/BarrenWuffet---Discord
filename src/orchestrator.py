@@ -107,23 +107,37 @@ class Orchestrator:
             for batch in _chunks(new_items, self.batch_size):
                 self.filter.process(batch)  # sets keep/urgency/reason/rewritten
                 for item in batch:
-                    if item.keep:
-                        self._deliver(item)
-                    else:
+                    if not item.keep:
                         logger.info("DROPPED %s (%s)", item.headline, item.reason)
+                        continue
+                    story_key = item.meta.get("story_key")
+                    if story_key and self.store.has_recent_story(story_key):
+                        # Same real-world event already delivered (possibly via a
+                        # different source/id/poll cycle) — don't re-post it.
+                        logger.info("SKIPPED duplicate story %r for %s",
+                                    story_key, item.headline)
+                        continue
+                    delivered = self._deliver(item)
+                    # Only remember the story as "seen" if it actually reached at
+                    # least one sink — a webhook outage / 5xx must not poison the
+                    # cross-source dedupe cache with a story nobody ever saw.
+                    if story_key and delivered:
+                        self.store.mark_story_seen(story_key)
                 # mark_seen AFTER processing so a crash mid-filter doesn't
                 # permanently swallow an unprocessed item.
                 self.store.mark_seen([i.id for i in batch])
 
         self.store.prune(self.prune_older_than_days)
+        self.store.prune_stories(self.prune_older_than_days)
 
-    def _deliver(self, item: NewsItem) -> None:
+    def _deliver(self, item: NewsItem) -> bool:
         delivered_to = []
         for sink in self.sinks:
             if sink.accepts(item):  # routing happens here
                 if sink.deliver(item):
                     delivered_to.append(sink.name)
         logger.info("KEPT [%s] %s -> %s", item.urgency, item.headline, delivered_to)
+        return bool(delivered_to)
 
     # --- helpers (overridable for tests) ----------------------------------
 

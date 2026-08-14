@@ -118,6 +118,26 @@ def test_min_urgency_env_var_unset_falls_back_to_config(monkeypatch):
     assert sink.accepts(_item("low")) is True
 
 
+def test_empty_ticker_title_has_no_placeholder(monkeypatch):
+    monkeypatch.setenv("W", "http://hook")
+    posted = {}
+
+    def fake_post(url, json=None, timeout=None):
+        posted["json"] = json
+        return _FakeResp(204)
+
+    monkeypatch.setattr(discord_mod.requests, "post", fake_post)
+    sink = DiscordSink("discord_news", "W", rate_limit_sleep=0)
+    item = NewsItem(id="1", source="finviz_news", headline="Market roundup",
+                    url="http://x", ticker=None, keep=True, urgency="low")
+    assert sink.deliver(item) is True
+
+    title = posted["json"]["embeds"][0]["title"]
+    assert title == "Market roundup"
+    assert "—" not in title
+    assert "-" != title[0]
+
+
 def test_min_urgency_env_var_invalid_value_falls_back_to_config(monkeypatch):
     monkeypatch.setenv("W", "http://hook")
     monkeypatch.setenv("MIN_URG_BAD", "not-a-real-level")

@@ -10,7 +10,7 @@
 ## 1. What this is (one paragraph)
 
 A long-running Python worker that polls **Finviz Elite** for stock-market news on
-a watchlist, sends each new headline to **Claude** (`claude-haiku-4-5`) which
+a watchlist, sends each new headline to **Claude** (`claude-sonnet-5`) which
 decides *keep or drop*, rewrites kept headlines into trader-friendly one-liners,
 and tags each with an **urgency** (`high`/`medium`/`low`). Kept items are
 delivered to **Discord** via webhooks. A `#news` channel gets everything kept; a
@@ -70,6 +70,12 @@ src/
                        Settings object. DEDUPE_PATH env overrides config path.
   dedupe.py            SeenStore: SQLite table `seen(id PK, first_seen)`.
                        has_seen / mark_seen (INSERT OR IGNORE) / prune / is_empty.
+                       Also a second table `story_seen(story_key PK, last_seen)`
+                       — has_recent_story / mark_story_seen / prune_stories —
+                       for content-level (not just id-level) dedupe: catches the
+                       same real-world story arriving via a different source/id
+                       in a different poll cycle, keyed on the story_key the
+                       filter derives from content (see claude_filter.py above).
 
   sources/
     base.py            Source ABC: `fetch() -> list[NewsItem]`. Must NOT raise on
@@ -86,6 +92,10 @@ src/
                        items, calls Claude, parses strict JSON, coerces bad urgency
                        to "low", and on ANY failure defaults items to keep=False so
                        a broken response can never flood Discord or crash the loop.
+                       Also has Claude correct/null a wrong source-supplied ticker
+                       (item.ticker) and emit a content-derived "story_key" used
+                       for cross-source/cross-poll duplicate-story suppression
+                       (see the dedupe.py and orchestrator.py notes below).
 
   sinks/
     base.py            Sink ABC: `accepts(item)` routing predicate (default True)
@@ -145,10 +155,12 @@ Required env vars (see `.env.example`):
 
 ### PROVEN (no secrets required)
 
-- **Unit tests:** `pytest -q` → 23 passing. Covers dedupe, Finviz CSV parsing +
-  every error path, Claude JSON parsing + coercion + no-crash, Discord routing +
-  embed + 429 retry.
-- **End-to-end dry run:** `python scripts/verify_flow.py` → 17/17 checks. This
+- **Unit tests:** `pytest -q` → 48 passing. Covers dedupe (id-level + story-level
+  keyed-TTL dedupe), Finviz CSV parsing + every error path, Claude JSON parsing +
+  coercion + no-crash + ticker-correction + story_key extraction, Discord routing +
+  embed + 429 retry + ticker-less title, and cross-source/cross-poll duplicate-story
+  suppression (including the failed-delivery-must-not-poison-the-cache case).
+- **End-to-end dry run:** `python scripts/verify_flow.py` → 20/20 checks. This
   drives the REAL orchestrator, filter, sinks, and store with FAKE external APIs
   and asserts the full behavior:
   1. one poll: high item → both channels, medium → news only, dropped →
@@ -158,6 +170,8 @@ Required env vars (see `.env.example`):
   4. warm-start: empty store marks everything seen WITHOUT delivering.
   5. malformed Claude response → no delivery, no crash.
   6. a source that raises → poll survives, other sources still deliver.
+  7. the same story via two different sources/poll cycles (differently worded,
+     one with a mistagged ticker) → delivered exactly once, corrected ticker only.
 
 **This means the wiring, routing, dedupe, and failure-handling are all confirmed
 correct.** What the dry run cannot confirm is the shape of the real external
@@ -217,8 +231,8 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # 1. Prove the wiring with ZERO secrets
-pytest -q                      # unit tests -> 23 passed
-python scripts/verify_flow.py  # end-to-end dry run -> 17/17
+pytest -q                      # unit tests -> 48 passed
+python scripts/verify_flow.py  # end-to-end dry run -> 20/20
 
 # 2. Add secrets
 cp .env.example .env
@@ -267,7 +281,10 @@ Service would be marked unhealthy). `render.yaml` is committed and IaC-ready:
 `warm_start: true` flag is the secondary safety net if the disk is ever empty.
 
 **Cost:** free tier does NOT keep workers alive 24/7 → use Starter (~$7/mo).
-Claude (Haiku) ≈ $2–4/mo at 5-min polling. Total ≈ $10/mo.
+Claude (Sonnet, current default per §1 — upgraded from Haiku for ticker-
+correction/story-key reliability) costs noticeably more per call than Haiku at
+the same 5-min polling cadence; re-check actual spend against the Anthropic
+dashboard after a few days rather than trusting a stale estimate here.
 
 ---
 
@@ -320,8 +337,8 @@ the `model` there too — no code change.
 ## 11. Quick reference — commands
 
 ```bash
-pytest -q                       # unit tests (23)
-python scripts/verify_flow.py   # end-to-end dry run (17 checks), no secrets
+pytest -q                       # unit tests (48)
+python scripts/verify_flow.py   # end-to-end dry run (20 checks), no secrets
 python -m src.main              # run the real bot (needs .env)
 ```
 
@@ -330,10 +347,18 @@ python -m src.main              # run the real bot (needs .env)
 ## 12. Current state summary (for the next agent)
 
 - All modules from the implementation plan are built and wired.
-- 23/23 unit tests pass; 17/17 end-to-end dry-run checks pass.
+- 48/48 unit tests pass; 20/20 end-to-end dry-run checks pass.
 - The ONLY thing blocking a real run is confirming the Finviz Elite export
   endpoint + CSV columns against a live token (§6), plus supplying the three
   secrets. Everything downstream of a correctly-parsed `NewsItem` is verified.
 - Screener source (`finviz_screener.py`) and X source are intentionally NOT built
   (v2) — the stub + registry pattern proves they're drop-ins.
+- Filter model is `claude-sonnet-5` (upgraded from Haiku — see §1, §8 cost note).
+  It now also corrects/nulls a mistagged source ticker and emits a `story_key`
+  used by `SeenStore`'s second table for cross-source/cross-poll duplicate-story
+  suppression (§10). Known limitation: `story_key` intentionally omits date/time,
+  so two genuinely distinct same-day/same-ticker/same-event-type stories could
+  collide within the 24h window — a documented tradeoff, not a bug, unless it's
+  observed to actually happen in practice (see the KNOWN LIMITATION note in
+  `src/filter/claude_filter.py`'s `_apply()` for the escalation path).
 ```

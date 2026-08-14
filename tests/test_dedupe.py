@@ -54,3 +54,63 @@ def test_prune_removes_old(tmp_path):
     store2.prune(older_than_days=30)
     assert not store2.has_seen("old")
     assert store2.has_seen("new")
+
+
+def test_story_seen_within_window(tmp_path):
+    store = SeenStore(str(tmp_path / "seen.db"))
+    assert not store.has_recent_story("rddt-sp500-inclusion")
+
+    store.mark_story_seen("rddt-sp500-inclusion")
+    assert store.has_recent_story("rddt-sp500-inclusion")
+    assert store.has_recent_story("rddt-sp500-inclusion", window_hours=48)
+
+
+def test_story_seen_outside_window_not_matched(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "seen.db")
+    store = SeenStore(path)
+    store.mark_story_seen("old-story")
+
+    conn = sqlite3.connect(path)
+    conn.execute("UPDATE story_seen SET last_seen = ? WHERE story_key = ?",
+                 ("2000-01-01T00:00:00+00:00", "old-story"))
+    conn.commit()
+    conn.close()
+
+    store2 = SeenStore(path)
+    assert not store2.has_recent_story("old-story", window_hours=24)
+
+
+def test_has_recent_story_blank_key_is_false(tmp_path):
+    store = SeenStore(str(tmp_path / "seen.db"))
+    assert not store.has_recent_story("")
+    store.mark_story_seen("")  # no-op, must not raise
+    assert not store.has_recent_story("")
+
+
+def test_mark_story_seen_updates_timestamp(tmp_path):
+    store = SeenStore(str(tmp_path / "seen.db"))
+    store.mark_story_seen("a-story")
+    store.mark_story_seen("a-story")  # re-mark shouldn't error (upsert)
+    assert store.has_recent_story("a-story")
+
+
+def test_prune_stories_removes_old(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "seen.db")
+    store = SeenStore(path)
+    store.mark_story_seen("old-story")
+    store.mark_story_seen("new-story")
+
+    conn = sqlite3.connect(path)
+    conn.execute("UPDATE story_seen SET last_seen = ? WHERE story_key = ?",
+                 ("2000-01-01T00:00:00+00:00", "old-story"))
+    conn.commit()
+    conn.close()
+
+    store2 = SeenStore(path)
+    store2.prune_stories(older_than_days=7)
+    assert not store2.has_recent_story("old-story", window_hours=24 * 365 * 30)
+    assert store2.has_recent_story("new-story")

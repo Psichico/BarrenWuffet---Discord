@@ -216,6 +216,62 @@ def main():
     check("crashing source did not kill poll", not crashed)
     check("good source still delivered despite bad source", len(posted) == 2)
 
+    print("\n=== 7. Same story via two sources/polls -> delivered ONCE (story_key dedupe) ===")
+
+    class FakeMarketSource(Source):
+        name = "finviz_market"
+        def fetch(self):
+            return [NewsItem(id="url://rddt-a", source="finviz_market",
+                             headline="RDDT joins the S&P 500. Analysts flag concerns.",
+                             url="url://rddt-a", ticker="RDDT")]
+
+    class FakeStocksSource(Source):
+        name = "finviz_stocks"
+        def fetch(self):
+            return [NewsItem(id="url://rddt-b", source="finviz_stocks",
+                             headline="Reddit shares surge on S&P 500 inclusion news.",
+                             url="url://rddt-b", ticker="MRVL")]  # mistagged, like the real bug
+
+    class StoryKeyClient:
+        """Simulates Claude correcting the ticker and emitting a consistent
+        story_key for the same event across two independent calls."""
+        class messages:
+            calls = 0
+
+            @classmethod
+            def create(cls, **kwargs):
+                cls.calls += 1
+                text = (
+                    '[{"index": 0, "keep": true, "urgency": "medium", '
+                    '"reason": "sp500", "rewrite": "RDDT confirmed for S&P 500 inclusion.", '
+                    '"ticker": "RDDT", "story_key": "rddt-sp500-inclusion"}]'
+                )
+                class Block:
+                    def __init__(self, t): self.text = t
+                class Resp:
+                    def __init__(self, t): self.content = [Block(t)]
+                return Resp(text)
+
+    story_client = StoryKeyClient()
+    news_sink7, _ = _sinks()
+    store7 = _tmp_store()
+
+    orch7a = Orchestrator([FakeMarketSource()], ClaudeFilter(_llm(), client=story_client),
+                          [news_sink7], store7, poll_interval_seconds=1,
+                          batch_size=20, warm_start=False)
+    posted.clear()
+    orch7a._run_once()
+    check("poll 1 (finviz_market) delivers the story", len(posted) == 1)
+
+    orch7b = Orchestrator([FakeStocksSource()], ClaudeFilter(_llm(), client=story_client),
+                          [news_sink7], store7, poll_interval_seconds=1,
+                          batch_size=20, warm_start=False)
+    orch7b._run_once()  # separate "poll cycle", different source, different id
+    check("poll 2 (finviz_stocks, same story reworded) delivers NOTHING more",
+          len(posted) == 1)
+    check("mistagged ticker (MRVL) never reached Discord",
+          not any("MRVL" in p[1]["embeds"][0]["title"] for p in posted))
+
     print("\n" + "=" * 60)
     total, passed = len(results), sum(results)
     print(f"RESULT: {passed}/{total} checks passed")

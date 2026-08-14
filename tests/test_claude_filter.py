@@ -113,6 +113,46 @@ def test_api_exception_never_crashes():
         assert item.reason == "filter_parse_error"
 
 
+def test_ticker_correction_overrides_source_ticker():
+    items = [
+        NewsItem(id="1", source="finviz_news", headline="Reddit joins S&P 500",
+                 url="u1", ticker="MRVL"),
+    ]
+    resp = (
+        '[{"index": 0, "keep": true, "urgency": "medium", "reason": "x", '
+        '"rewrite": "RDDT joins the S&P 500.", "ticker": "RDDT", '
+        '"story_key": "rddt-sp500-inclusion"}]'
+    )
+    f = ClaudeFilter(_cfg(), client=_FakeClient(resp))
+    result = f.process(items)
+    assert result[0].ticker == "RDDT"
+    assert result[0].meta["story_key"] == "rddt-sp500-inclusion"
+
+
+def test_blank_ticker_clears_item_ticker():
+    items = [
+        NewsItem(id="1", source="finviz_news", headline="Market roundup",
+                 url="u1", ticker="MRVL"),
+    ]
+    resp = (
+        '[{"index": 0, "keep": true, "urgency": "low", "reason": "x", '
+        '"rewrite": "y", "ticker": "", "story_key": ""}]'
+    )
+    f = ClaudeFilter(_cfg(), client=_FakeClient(resp))
+    result = f.process(items)
+    assert result[0].ticker is None
+    assert "story_key" not in result[0].meta
+
+
+def test_missing_ticker_and_story_key_fields_dont_crash():
+    resp = '[{"index": 0, "keep": true, "urgency": "high", "reason": "x", "rewrite": "y"},' \
+           '{"index": 1, "keep": false, "urgency": "low", "reason": "z", "rewrite": ""}]'
+    f = ClaudeFilter(_cfg(), client=_FakeClient(resp))
+    items = f.process(_items())
+    assert items[0].ticker is None
+    assert "story_key" not in items[0].meta
+
+
 def test_disable_filtering_forces_keep_true(monkeypatch):
     monkeypatch.setenv("DISABLE_FILTERING", "true")
     resp = (

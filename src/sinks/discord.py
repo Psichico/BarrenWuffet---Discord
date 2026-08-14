@@ -130,8 +130,7 @@ class DiscordSink(Sink):
 
     def _build_payload(self, item: NewsItem) -> dict:
         headline = item.headline[:_HEADLINE_TRUNC]
-        ticker = item.ticker or "-"
-        title = f"{ticker} — {headline}"[:_TITLE_MAX]
+        title = (f"{item.ticker} — {headline}" if item.ticker else headline)[:_TITLE_MAX]
         description = (item.rewritten or item.headline)[:_DESC_MAX]
 
         footer_bits = [b for b in (item.publisher, item.source, item.urgency) if b]
