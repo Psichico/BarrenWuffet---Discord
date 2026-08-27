@@ -116,6 +116,18 @@ scripts/
   verify_flow.py       End-to-end DRY-RUN harness (fakes all 3 external APIs,
                        exercises the REAL orchestrator/filter/sink/store). No
                        secrets needed. `python scripts/verify_flow.py`.
+  cadbury_bot/         OPTIONAL self-contained bolt-on: end-of-day "Market Recap"
+                       email (16:30 ET weekdays). Imported as
+                       `scripts.cadbury_bot` (scripts/ is a package). Plugs in via
+                       two generic, feature-agnostic Orchestrator hooks —
+                       `on_item_kept(item)` and `post_iteration_hook()` — added to
+                       `Orchestrator.__init__` (both default None / no-op) and
+                       wired from `src/main.py` only when config.yaml has an
+                       enabled `cadbury_bot:` block. Owns its own `cadbury_*`
+                       tables inside seen.db (separate connection; src/dedupe.py
+                       untouched). Nothing else in `src/` references it. Has its
+                       own README (with a removal checklist), tests, and
+                       `verify_cadbury.py` dry run.
 
 config.yaml            Non-secret tunables + the interest profile (the "brain" of
                        the filter, in plain English). Edit freely — no code change.
@@ -313,6 +325,16 @@ config. The filter already emits `urgency`, so the data is ready.
 Edit the `interest_profile`, `urgency_guidance`, or `rewrite_style` strings in
 `config.yaml`. These are plain English and drive the whole classification. Swap
 the `model` there too — no code change.
+
+### Optional bolt-on: `scripts/cadbury_bot/` (end-of-day recap email)
+Self-contained package delivering a 16:30-ET weekday "Market Recap" email of the
+day's kept headlines. It attaches through two generic `Orchestrator` hooks
+(`on_item_kept`, `post_iteration_hook`) rather than editing the pipeline. Toggle
+with the `cadbury_bot:` block in `config.yaml` (`enabled: false` ⇒ inert); needs
+`GMAIL_ADDRESS` / `GMAIL_APP_PASSWORD` env vars. See
+`scripts/cadbury_bot/README.md` for config, `python -m scripts.cadbury_bot
+--force`, and the full removal checklist. Tests: `pytest -q
+scripts/cadbury_bot/tests` + `python scripts/cadbury_bot/verify_cadbury.py`.
 
 ---
 

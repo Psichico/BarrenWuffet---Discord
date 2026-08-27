@@ -33,6 +33,10 @@ services:
         value: low              # overrides config.yaml's discord_stocks min_urgency (low/medium/high)
       - key: DISCORD_INSIDERS_MIN_URGENCY
         value: high             # overrides config.yaml's discord_insiders min_urgency (low/medium/high)
+      - key: GMAIL_ADDRESS
+        sync: false            # cadbury_bot recap email — sender Gmail address
+      - key: GMAIL_APP_PASSWORD
+        sync: false            # cadbury_bot recap email — Google App Password (2FA account)
 
   - type: worker
     name: junior-researcher-bot

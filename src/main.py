@@ -12,6 +12,7 @@ import logging
 import os
 import sys
 
+from scripts.cadbury_bot import build_cadbury  # optional bolt-on; None when off
 from src.config import load_settings
 from src.dedupe import SeenStore
 from src.filter.claude_filter import ClaudeFilter
@@ -46,6 +47,10 @@ def build_orchestrator(config_path: str = "config.yaml") -> Orchestrator:
 
     store = SeenStore(settings.dedupe.path)
 
+    # Optional end-of-day recap email. `None` unless config.yaml has an enabled
+    # `cadbury_bot:` block — see scripts/cadbury_bot/README.md.
+    cadbury = build_cadbury(config_path, settings.dedupe.path)
+
     return Orchestrator(
         sources=sources,
         filter_=claude_filter,
@@ -56,6 +61,8 @@ def build_orchestrator(config_path: str = "config.yaml") -> Orchestrator:
         batch_size=settings.llm.batch_size,
         prune_older_than_days=settings.dedupe.prune_older_than_days,
         warm_start=settings.warm_start,
+        on_item_kept=(cadbury.recorder.record if cadbury else None),
+        post_iteration_hook=(cadbury.tick if cadbury else None),
     )
 
 

@@ -37,6 +37,8 @@ class Orchestrator:
         poll_interval_weekend_seconds: int = 10800,
         prune_older_than_days: int = 30,
         warm_start: bool = True,
+        on_item_kept=None,
+        post_iteration_hook=None,
     ):
         self.sources = sources
         self.filter = filter_
@@ -47,6 +49,12 @@ class Orchestrator:
         self.batch_size = batch_size
         self.prune_older_than_days = prune_older_than_days
         self.warm_start = warm_start
+        # Optional, feature-agnostic extension points (both no-ops when unset):
+        #   on_item_kept(item)       — called once per kept, non-duplicate item
+        #   post_iteration_hook()    — called once after each poll iteration
+        # Used by the optional cadbury_bot bolt-on; safe to leave in place.
+        self.on_item_kept = on_item_kept
+        self.post_iteration_hook = post_iteration_hook
         self._stop = False
 
     # --- lifecycle --------------------------------------------------------
@@ -70,6 +78,12 @@ class Orchestrator:
                 self._run_once()
             except Exception as e:  # one bad iteration must not kill the worker
                 logger.exception("Iteration failed, continuing: %s", e)
+
+            if self.post_iteration_hook is not None:
+                try:
+                    self.post_iteration_hook()
+                except Exception as e:  # a hook must never kill the worker
+                    logger.exception("post-iteration hook failed, continuing: %s", e)
 
             if self._stop:
                 break
@@ -117,6 +131,14 @@ class Orchestrator:
                         logger.info("SKIPPED duplicate story %r for %s",
                                     story_key, item.headline)
                         continue
+                    if self.on_item_kept is not None:
+                        # Fires for kept, non-duplicate items regardless of
+                        # whether delivery below succeeds. Must never raise.
+                        try:
+                            self.on_item_kept(item)
+                        except Exception as e:
+                            logger.exception("on_item_kept hook failed, "
+                                             "continuing: %s", e)
                     delivered = self._deliver(item)
                     # Only remember the story as "seen" if it actually reached at
                     # least one sink — a webhook outage / 5xx must not poison the

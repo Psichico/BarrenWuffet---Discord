@@ -82,3 +82,44 @@ sinks:
 dedupe:
   prune_older_than_days: 120
   path: ./seen.db                    # local dev; Render overrides via DEDUPE_PATH
+
+# ── cadbury_bot ── end-of-day Market Recap email. Self-contained optional feature.
+#    To remove: delete scripts/cadbury_bot/, revert the 2 hook lines in
+#    src/orchestrator.py and the ~4 lines in src/main.py, and delete this block.
+#    See scripts/cadbury_bot/README.md for the full checklist.
+cadbury_bot:
+  enabled: true
+  timezone: America/New_York
+  send_hour: 16                      # 24h ET wall clock
+  send_minute: 30                    # 16:30 ET = regular close + 30 min
+  model: claude-sonnet-5
+  max_tokens: 2000
+  max_items: 12                      # merge related headlines beyond this
+  recipients:
+    - j.patel.4779@westcliff.edu
+  subject_prefix: "Market Recap"     # -> "Market Recap — Wed, Aug 26 2026"
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  sender_env_var: GMAIL_ADDRESS      # secrets stay in env, only the NAMES here
+  password_env_var: GMAIL_APP_PASSWORD
+  recap_intro: |
+    You are writing an end-of-day market recap email for one trader. The input is
+    the list of headlines this bot flagged as important today, already filtered to
+    the trader's interests (AI chips / datacenter / HBM, tech & semi earnings and
+    guidance, M&A, export controls, major AI developments, market-moving macro)
+    and given to you IN THE ORDER THEY CROSSED during the day. Write only from the
+    one-liners provided — never add figures, quotes, or facts not in the input.
+  recap_style: |
+    Plain text only. No markdown headers, no bullets, no JSON. Structure exactly:
+      - Line 1: ONE punchy ALL-CAPS sentence you write fresh for today, tone
+        matching how eventful the day was (chaotic vs a grind vs dead quiet).
+      - Line 2: "Here's the recap, in the order it crossed today:"
+      - Then a numbered list (1., 2., 3., ...) KEEPING THE INPUT ORDER — do not
+        re-rank. 1-3 sentences per item. Lead with the company name then $TICKER.
+        State the fact, no hype, no emoji.
+      - If more than {max_items} items were given, merge closely related headlines
+        into a single number so the list is {max_items} or fewer.
+      - If no items were given, replace the list with exactly:
+        "Nothing crossed the bot's filter today — markets were quiet on the names
+        you follow."
+      - Last line: ONE fresh ALL-CAPS sign-off sentence.

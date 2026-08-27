@@ -81,6 +81,16 @@ emits the `urgency` field.
 Nothing else changes. `FinvizScreenerSource` is stubbed in
 `src/sources/finviz_screener.py` as the worked example (see plan §6.1).
 
+### Optional: end-of-day recap email (`scripts/cadbury_bot/`)
+
+A self-contained bolt-on that emails a plain-text "Market Recap" of the day's
+flagged headlines at 16:30 ET on weekdays. Enable the `cadbury_bot:` block in
+`config.yaml` and set `GMAIL_ADDRESS` + `GMAIL_APP_PASSWORD` (a Google
+[App Password](https://myaccount.google.com/apppasswords)) in `.env` / the Render
+dashboard. It plugs into the core through two generic `Orchestrator` hooks and
+touches nothing else; `scripts/cadbury_bot/README.md` has the details and a
+removal checklist. Smoke test: `python -m scripts.cadbury_bot --force`.
+
 ## Deployment (Render Background Worker)
 
 Deploy as a **Background Worker**, not a Web Service — there is no HTTP port.
