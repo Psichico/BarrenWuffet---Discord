@@ -31,11 +31,15 @@ _DEFAULT_STYLE = (
     "  - Line 1: ONE punchy ALL-CAPS sentence you write fresh for today, tone "
     "matching how eventful the day was.\n"
     "  - Line 2: \"Here's the recap, in the order it crossed today:\"\n"
-    "  - Then a numbered list (1., 2., 3., ...) KEEPING THE INPUT ORDER — do not "
-    "re-rank. 1-3 sentences per item. Lead with the company name then $TICKER. "
-    "State the fact, no hype, no emoji.\n"
-    "  - If more than {max_items} items were given, merge closely related "
-    "headlines into a single number so the list is {max_items} or fewer.\n"
+    "  - Then a numbered list, AT MOST {max_items} points, roughly in the order "
+    "the news crossed. Each point is 2-4 sentences in YOUR words summarising a "
+    "story or a cluster of related stories — do NOT just echo a headline. "
+    "Fold same-topic headlines (same company/event) into one point. Lead with "
+    "the company name then $TICKER (or the theme). State the fact, no hype, no "
+    "emoji.\n"
+    "  - If far more than {max_items} headlines were flagged, pick the "
+    "{max_items} most market-moving threads and, in the last point, note how "
+    "many others there were.\n"
     "  - If no items were given, replace the list with exactly: \"Nothing "
     "crossed the bot's filter today — markets were quiet on the names you "
     "follow.\"\n"
@@ -50,8 +54,9 @@ class CadburyConfig:
     send_hour: int = 16
     send_minute: int = 30
     model: str = "claude-sonnet-5"
-    max_tokens: int = 2000
-    max_items: int = 12
+    max_tokens: int = 3000
+    max_items: int = 12           # numbered points the model should output
+    digest_max_items: int = 40    # day's items actually fed to the model / fallback
     recipients: list[str] = field(default_factory=list)
     subject_prefix: str = "Market Recap"
     smtp_host: str = "smtp.gmail.com"
@@ -90,8 +95,9 @@ def load_cadbury_config(config_path: str = "config.yaml") -> Optional[CadburyCon
         send_hour=int(block.get("send_hour", 16)),
         send_minute=int(block.get("send_minute", 30)),
         model=str(block.get("model", "claude-sonnet-5")),
-        max_tokens=int(block.get("max_tokens", 2000)),
+        max_tokens=int(block.get("max_tokens", 3000)),
         max_items=int(block.get("max_items", 12)),
+        digest_max_items=int(block.get("digest_max_items", 40)),
         recipients=[str(r) for r in recipients],
         subject_prefix=str(block.get("subject_prefix", "Market Recap")),
         smtp_host=str(block.get("smtp_host", "smtp.gmail.com")),

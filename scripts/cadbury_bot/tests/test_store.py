@@ -84,6 +84,43 @@ def test_prune_drops_old_rows(tmp_path):
     assert store2.has_run("2026-08-26")
 
 
+def test_count_for_day(tmp_path):
+    store = CadburyStore(str(tmp_path / "seen.db"))
+    for i in range(7):
+        _rec(store, f"a{i}", "2026-08-26")
+    _rec(store, "b", "2026-08-27")
+    assert store.count_for_day("2026-08-26") == 7
+    assert store.count_for_day("2026-08-25") == 0
+
+
+def test_limit_keeps_top_by_urgency_then_returns_chronological(tmp_path):
+    store = CadburyStore(str(tmp_path / "seen.db"))
+    # insertion order a..h; urgencies mixed
+    seq = [("a", "low"), ("b", "high"), ("c", "low"), ("d", "low"),
+           ("e", "medium"), ("f", "low"), ("g", "high"), ("h", "low")]
+    for k, u in seq:
+        _rec(store, k, "2026-08-26", urgency=u)
+
+    top4 = store.kept_items_for_day("2026-08-26", limit=4)
+    ids = [r["id"] for r in top4]
+    # the two highs + the one medium + one more, and presented in insertion order
+    assert ids == sorted(ids, key=lambda x: "abcdefgh".index(x))
+    assert "b" in ids and "g" in ids and "e" in ids
+    assert len(ids) == 4
+
+    # no limit -> everything, strict insertion order
+    allrows = store.kept_items_for_day("2026-08-26")
+    assert [r["id"] for r in allrows] == list("abcdefgh")
+
+
+def test_limit_larger_than_rows_returns_all_in_order(tmp_path):
+    store = CadburyStore(str(tmp_path / "seen.db"))
+    for k in "abc":
+        _rec(store, k, "2026-08-26")
+    rows = store.kept_items_for_day("2026-08-26", limit=99)
+    assert [r["id"] for r in rows] == ["a", "b", "c"]
+
+
 def test_coexists_with_seenstore_on_same_file(tmp_path):
     path = str(tmp_path / "seen.db")
     seen = SeenStore(path)

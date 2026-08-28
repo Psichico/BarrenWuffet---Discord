@@ -195,6 +195,26 @@ def main() -> int:
     check("fallback still lists the tickers", "$NVDA" in mailer.sent[0][1])
     store.close()
 
+    print("6. a 400-headline day is capped, not dumped")
+    store = CadburyStore(db)
+    for i in range(1, 420):
+        urg = "high" if i % 50 == 0 else "low"
+        store.record(item_id=f"flood-{i}", day="2026-09-01", ticker=f"T{i}",
+                     headline=f"headline number {i}", rewritten=f"$T{i} did thing {i}.",
+                     urgency=urg, url=f"http://x/{i}")
+    client = _FakeClient()
+    mailer = _FakeMailer()
+    bot = CadburyBot(cfg=_cfg(digest_max_items=40), store=store, recorder=None,
+                     composer=compose, mailer=mailer, client=client)
+    bot.tick(now=datetime.datetime(2026, 9, 1, 16, 35))
+    check("email sent", len(mailer.sent) == 1)
+    digest_sent = client.calls[0]["messages"][0]["content"]
+    check("at most 40 items reach the model", digest_sent.count("\n") <= 39)
+    check("model told the true volume (419)", "419" in client.calls[0]["system"])
+    check("all 8 high-urgency items kept in the cap",
+          all(f"$T{n}" in digest_sent for n in (50, 100, 150, 200, 250, 300, 350, 400)))
+    store.close()
+
     print(f"\n{_checks - _fails}/{_checks} checks passed.")
     return 1 if _fails else 0
 

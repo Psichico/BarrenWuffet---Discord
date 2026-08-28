@@ -90,6 +90,23 @@ def test_compose_falls_open_on_model_error():
     assert out.splitlines()[0].isupper()          # still has an ALL-CAPS header
 
 
+def test_compose_tells_model_the_true_volume_when_capped():
+    client = _FakeClient("OK")
+    compose(_cfg(), _items(), WHEN, client=client, total=470)
+    system = client.messages.calls[0]["system"]
+    assert "470" in system and "2" in system      # 470 flagged, 2 shown
+
+
+def test_fallback_caps_rows_and_notes_the_overflow():
+    many = [dict(ticker=f"T{i}", urgency="low", headline=f"h{i}",
+                 rewritten=f"$T{i} did a thing {i}") for i in range(40)]
+    out = compose(_cfg(), many, WHEN, client=_BoomClient(), total=612)
+    numbered = [ln for ln in out.splitlines() if ln[:2].strip().rstrip(".").isdigit()]
+    assert len(numbered) <= 20                     # hard fallback ceiling
+    assert "more headline" in out and "612" not in out  # notes hidden count, not raw total
+    assert "and 592 more" in out                   # 612 - 20 shown
+
+
 def test_compose_fallback_quiet_day():
     out = compose(_cfg(), [], WHEN, client=_BoomClient())
     assert "Nothing crossed the bot's filter today" in out

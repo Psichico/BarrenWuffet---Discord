@@ -66,15 +66,42 @@ class CadburyStore:
         )
         self._conn.commit()
 
-    def kept_items_for_day(self, day: str) -> list[dict]:
-        """All items flagged on ``day``, in the order they crossed (insert order)."""
+    _COLS = ("rowid, id, day, ticker, headline, rewritten, urgency, url, created_at")
+    _URGENCY_RANK = (
+        "CASE urgency WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END"
+    )
+
+    def kept_items_for_day(self, day: str, limit: "int | None" = None) -> list[dict]:
+        """Items flagged on ``day``, in the order they crossed (insert order).
+
+        With ``limit`` set, keep only the top ``limit`` by urgency then recency
+        (so a 400-headline day still yields a readable recap), but return them
+        re-sorted by insertion order so "in the order it crossed" still holds.
+        """
+        if limit is None:
+            cur = self._conn.execute(
+                f"SELECT {self._COLS} FROM cadbury_kept_items "
+                "WHERE day = ? ORDER BY rowid ASC",
+                (day,),
+            )
+            cols = [c[0] for c in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
         cur = self._conn.execute(
-            "SELECT id, day, ticker, headline, rewritten, urgency, url, created_at "
-            "FROM cadbury_kept_items WHERE day = ? ORDER BY rowid ASC",
-            (day,),
+            f"SELECT {self._COLS} FROM cadbury_kept_items WHERE day = ? "
+            f"ORDER BY {self._URGENCY_RANK} DESC, rowid DESC LIMIT ?",
+            (day, int(limit)),
         )
         cols = [c[0] for c in cur.description]
-        return [dict(zip(cols, row)) for row in cur.fetchall()]
+        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+        rows.sort(key=lambda r: r["rowid"])
+        return rows
+
+    def count_for_day(self, day: str) -> int:
+        cur = self._conn.execute(
+            "SELECT COUNT(*) FROM cadbury_kept_items WHERE day = ?", (day,)
+        )
+        return int(cur.fetchone()[0])
 
     # --- run marker ----------------------------------------------------------
 

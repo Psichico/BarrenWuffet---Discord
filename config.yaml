@@ -93,8 +93,10 @@ cadbury_bot:
   send_hour: 16                      # 24h ET wall clock
   send_minute: 30                    # 16:30 ET = regular close + 30 min
   model: claude-sonnet-5
-  max_tokens: 2000
-  max_items: 12                      # merge related headlines beyond this
+  max_tokens: 3000
+  max_items: 12                      # numbered points the recap should contain
+  digest_max_items: 40              # busy days: only the 40 highest-priority
+                                    # (urgency then recency) go to the summariser
   recipients:
     - j.patel.4779@westcliff.edu
   subject_prefix: "Market Recap"     # -> "Market Recap — Wed, Aug 26 2026"
@@ -114,11 +116,14 @@ cadbury_bot:
       - Line 1: ONE punchy ALL-CAPS sentence you write fresh for today, tone
         matching how eventful the day was (chaotic vs a grind vs dead quiet).
       - Line 2: "Here's the recap, in the order it crossed today:"
-      - Then a numbered list (1., 2., 3., ...) KEEPING THE INPUT ORDER — do not
-        re-rank. 1-3 sentences per item. Lead with the company name then $TICKER.
-        State the fact, no hype, no emoji.
-      - If more than {max_items} items were given, merge closely related headlines
-        into a single number so the list is {max_items} or fewer.
+      - Then a numbered list, AT MOST {max_items} points, roughly in the order the
+        news crossed. Each point is 2-4 sentences IN YOUR OWN WORDS covering a
+        story or a cluster of related stories — never just echo a headline. Fold
+        same-topic headlines (same company/event) into one point. Lead with the
+        company name then $TICKER, or the theme. State the fact, no hype, no emoji.
+      - If far more than {max_items} headlines were flagged, pick the {max_items}
+        most market-moving threads and note in the final point how many others
+        there were.
       - If no items were given, replace the list with exactly:
         "Nothing crossed the bot's filter today — markets were quiet on the names
         you follow."

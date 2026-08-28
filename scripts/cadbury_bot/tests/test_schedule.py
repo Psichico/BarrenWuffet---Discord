@@ -9,9 +9,14 @@ class _FakeStore:
         self._items = items or []
         self.runs = set()
         self.pruned = 0
+        self.last_limit = None
 
-    def kept_items_for_day(self, day):
-        return list(self._items)
+    def kept_items_for_day(self, day, limit=None):
+        self.last_limit = limit
+        return list(self._items[:limit] if limit else self._items)
+
+    def count_for_day(self, day):
+        return len(self._items)
 
     def has_run(self, day):
         return day in self.runs
@@ -33,8 +38,9 @@ class _FakeMailer:
         return self.ok
 
 
-def _compose_stub(cfg, items, when, client=None):
-    return f"BODY for {when.date().isoformat()} with {len(items)} items"
+def _compose_stub(cfg, items, when, client=None, total=None):
+    return (f"BODY for {when.date().isoformat()} with {len(items)} items "
+            f"(total={total})")
 
 
 def _cfg(**kw):
@@ -66,6 +72,15 @@ def test_fires_weekday_after_target():
     assert mailer.sent[0][0] == "Market Recap — Wed, Aug 26 2026"
     assert "2026-08-26" in store.runs
     assert store.pruned == 1
+
+
+def test_send_applies_digest_cap():
+    cfg = _cfg(digest_max_items=25)
+    store = _FakeStore(items=[{"ticker": f"T{i}"} for i in range(300)])
+    bot, store, mailer = _bot(cfg=cfg, store=store)
+    bot.tick(now=WEEKDAY_LATE)
+    assert store.last_limit == 25                     # only the cap is fetched
+    assert "total=300" in mailer.sent[0][1]           # true volume passed through
 
 
 def test_not_before_target():

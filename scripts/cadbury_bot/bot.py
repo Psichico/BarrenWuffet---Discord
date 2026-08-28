@@ -73,12 +73,14 @@ class CadburyBot:
     # --- internals --------------------------------------------------------
 
     def _send_for(self, day: str, now) -> bool:
-        items = self.store.kept_items_for_day(day)
-        body = self.composer(self.cfg, items, now, client=self._client)
+        total = self.store.count_for_day(day)
+        items = self.store.kept_items_for_day(day, limit=self.cfg.digest_max_items)
+        body = self.composer(self.cfg, items, now, client=self._client, total=total)
         subject = f"{self.cfg.subject_prefix} — {now.strftime('%a, %b %d %Y')}"
         if self.mailer.send(subject, body):
             self.store.mark_run(day)  # only mark on a real send -> retry next loop
-            logger.info("cadbury_bot: recap sent for %s (%d items)", day, len(items))
+            logger.info("cadbury_bot: recap sent for %s (%d of %d flagged)",
+                        day, len(items), total)
             return True
         logger.warning("cadbury_bot: recap send failed for %s - will retry", day)
         return False
