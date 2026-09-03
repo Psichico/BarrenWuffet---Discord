@@ -3,17 +3,22 @@ from src.filter.claude_filter import ClaudeFilter
 from src.models import NewsItem
 
 
-class _Block:
-    def __init__(self, text):
-        self.text = text
+class _Msg:
+    def __init__(self, content):
+        self.content = content
+
+
+class _Choice:
+    def __init__(self, content):
+        self.message = _Msg(content)
 
 
 class _Resp:
     def __init__(self, text):
-        self.content = [_Block(text)]
+        self.choices = [_Choice(text)]
 
 
-class _FakeMessages:
+class _FakeCompletions:
     def __init__(self, text):
         self._text = text
         self.calls = []
@@ -25,7 +30,7 @@ class _FakeMessages:
 
 class _FakeClient:
     def __init__(self, text):
-        self.messages = _FakeMessages(text)
+        self.chat = type("_Chat", (), {"completions": _FakeCompletions(text)})()
 
 
 def _items():
@@ -36,7 +41,7 @@ def _items():
 
 
 def _cfg(rewrite=True):
-    return LLMConfig(model="claude-haiku-4-5", batch_size=20, rewrite=rewrite,
+    return LLMConfig(model="", batch_size=20, rewrite=rewrite,
                      interest_profile="p", urgency_guidance="g", rewrite_style="s")
 
 
@@ -47,9 +52,12 @@ def test_parses_keep_urgency_and_rewrite():
         '{"index": 1, "keep": false, "urgency": "low", "reason": "routine", '
         '"rewrite": ""}]'
     )
-    f = ClaudeFilter(_cfg(), client=_FakeClient(resp))
+    client = _FakeClient(resp)
+    f = ClaudeFilter(_cfg(), client=client)
     items = f.process(_items())
 
+    # blank config model -> OpenRouter auto-routing
+    assert client.chat.completions.calls[0]["model"] == "openrouter/auto"
     assert items[0].keep is True
     assert items[0].urgency == "high"
     assert items[0].rewritten == "NVDA tops Q2 estimates."
@@ -100,11 +108,13 @@ def test_rewrite_disabled_leaves_rewritten_none():
 
 
 def test_api_exception_never_crashes():
+    class _BoomCompletions:
+        @staticmethod
+        def create(**kwargs):
+            raise RuntimeError("api down")
+
     class Boom:
-        class messages:
-            @staticmethod
-            def create(**kwargs):
-                raise RuntimeError("api down")
+        chat = type("_Chat", (), {"completions": _BoomCompletions()})()
 
     f = ClaudeFilter(_cfg(), client=Boom())
     items = f.process(_items())

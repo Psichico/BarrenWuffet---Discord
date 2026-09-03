@@ -1,8 +1,9 @@
-"""Turn the day's flagged one-liners into the recap email body (via Claude).
+"""Turn the day's flagged one-liners into the recap email body (via an LLM).
 
-Reuses the lazy-client + text-extraction pattern from
-``src/filter/claude_filter.py`` (kept as a small copy rather than a shared
-import, so this package stays self-contained).
+LLM calls go through OpenRouter's OpenAI-compatible API; the key comes from the
+``OR_CadburySummaryAPI`` env var. Reuses the lazy-client + text-extraction
+pattern from ``src/filter/claude_filter.py`` (kept as a small copy rather than a
+shared import, so this package stays self-contained).
 
 Unlike ``ClaudeFilter`` — which fails *closed* (a broken response drops items) —
 the recap fails *open*: on any error it emails a plain templated list, because a
@@ -16,12 +17,17 @@ balloon to hundreds of lines.
 from __future__ import annotations
 
 import logging
+import os
 
 from scripts.cadbury_bot.config import CadburyConfig
 
 logger = logging.getLogger(__name__)
 
 _FALLBACK_MAX_ROWS = 20  # hard ceiling on the raw-list fallback, whatever comes in
+
+_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+_API_KEY_ENV_VAR = "OR_CadburySummaryAPI"
+_DEFAULT_MODEL = "openrouter/auto"  # used when cfg.model is blank
 
 _SYSTEM_TEMPLATE = """\
 {intro}
@@ -82,20 +88,24 @@ def _fallback_body(items: list[dict], total: int) -> str:
 
 
 def _extract_text(response) -> str:
-    parts = []
-    for block in getattr(response, "content", []) or []:
-        text = getattr(block, "text", None)
-        if text:
-            parts.append(text)
-    return "".join(parts).strip()
+    # OpenAI-compatible SDK: response.choices[0].message.content
+    choices = getattr(response, "choices", None) or []
+    if not choices:
+        return ""
+    message = getattr(choices[0], "message", None)
+    content = getattr(message, "content", None) if message is not None else None
+    return (content or "").strip()
 
 
 def _get_client(client):
     if client is not None:
         return client
-    from anthropic import Anthropic  # lazy: SDK/key not needed until first send
+    from openai import OpenAI  # lazy: SDK/key not needed until first send
 
-    return Anthropic()
+    return OpenAI(
+        base_url=_OPENROUTER_BASE_URL,
+        api_key=os.environ.get(_API_KEY_ENV_VAR),
+    )
 
 
 def compose(cfg: CadburyConfig, items: list[dict], when, client=None,
@@ -116,11 +126,13 @@ def compose(cfg: CadburyConfig, items: list[dict], when, client=None,
             volume_note=_volume_note(len(items), total),
             style=style,
         )
-        resp = _get_client(client).messages.create(
-            model=cfg.model,
+        resp = _get_client(client).chat.completions.create(
+            model=cfg.model or _DEFAULT_MODEL,
             max_tokens=cfg.max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": digest}],
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": digest},
+            ],
         )
         text = _extract_text(resp)
         if not text:

@@ -41,8 +41,8 @@ def build_orchestrator(config_path: str = "config.yaml") -> Orchestrator:
         for name, cfg in settings.sinks.items()
     ]
 
-    # Real Anthropic client is constructed here; ClaudeFilter uses it lazily so
-    # imports don't require the SDK/key until this point.
+    # ClaudeFilter builds its OpenRouter (OpenAI-compatible) client lazily on
+    # first use from the OR_NewsFilterAPI env var — imports don't need the SDK/key.
     claude_filter = ClaudeFilter(settings.llm)
 
     store = SeenStore(settings.dedupe.path)

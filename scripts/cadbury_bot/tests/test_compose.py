@@ -4,17 +4,22 @@ from scripts.cadbury_bot.composer import build_digest, compose
 from scripts.cadbury_bot.config import CadburyConfig
 
 
-class _Block:
-    def __init__(self, text):
-        self.text = text
+class _Msg:
+    def __init__(self, content):
+        self.content = content
+
+
+class _Choice:
+    def __init__(self, content):
+        self.message = _Msg(content)
 
 
 class _Resp:
     def __init__(self, text):
-        self.content = [_Block(text)]
+        self.choices = [_Choice(text)]
 
 
-class _FakeMessages:
+class _FakeCompletions:
     def __init__(self, text):
         self._text = text
         self.calls = []
@@ -26,21 +31,24 @@ class _FakeMessages:
 
 class _FakeClient:
     def __init__(self, text):
-        self.messages = _FakeMessages(text)
+        self.chat = type("_Chat", (), {"completions": _FakeCompletions(text)})()
+
+
+class _BoomCompletions:
+    @staticmethod
+    def create(**kwargs):
+        raise RuntimeError("model down")
 
 
 class _BoomClient:
-    class messages:
-        @staticmethod
-        def create(**kwargs):
-            raise RuntimeError("model down")
+    chat = type("_Chat", (), {"completions": _BoomCompletions()})()
 
 
 WHEN = datetime.datetime(2026, 8, 26, 16, 35)
 
 
 def _cfg(**kw):
-    base = dict(model="claude-sonnet-5", max_tokens=2000, max_items=12,
+    base = dict(model="anthropic/claude-sonnet-4.5", max_tokens=2000, max_items=12,
                 recap_intro="INTRO", recap_style="STYLE up to {max_items} items")
     base.update(kw)
     return CadburyConfig(**base)
@@ -69,18 +77,25 @@ def test_compose_passes_digest_and_returns_model_text():
     client = _FakeClient("RECAP BODY GOES HERE")
     out = compose(_cfg(), _items(), WHEN, client=client)
     assert out == "RECAP BODY GOES HERE"
-    call = client.messages.calls[0]
-    assert call["model"] == "claude-sonnet-5"
-    assert "1. [$TSM]" in call["messages"][0]["content"]
-    assert "12 items" in call["system"]          # {max_items} substituted
-    assert "August 26 2026" in call["system"]    # date rendered
+    call = client.chat.completions.calls[0]
+    assert call["model"] == "anthropic/claude-sonnet-4.5"
+    system, user = call["messages"][0]["content"], call["messages"][1]["content"]
+    assert "1. [$TSM]" in user
+    assert "12 items" in system                  # {max_items} substituted
+    assert "August 26 2026" in system            # date rendered
+
+
+def test_compose_blank_model_uses_openrouter_auto():
+    client = _FakeClient("OK")
+    compose(_cfg(model=""), _items(), WHEN, client=client)
+    assert client.chat.completions.calls[0]["model"] == "openrouter/auto"
 
 
 def test_compose_empty_day_still_calls_model():
     client = _FakeClient("QUIET ONE.\n\nNothing crossed the bot's filter today")
     out = compose(_cfg(), [], WHEN, client=client)
     assert "Nothing crossed the bot's filter today" in out
-    assert client.messages.calls  # model was still consulted for opener/sign-off
+    assert client.chat.completions.calls  # model was still consulted for opener/sign-off
 
 
 def test_compose_falls_open_on_model_error():
@@ -93,7 +108,7 @@ def test_compose_falls_open_on_model_error():
 def test_compose_tells_model_the_true_volume_when_capped():
     client = _FakeClient("OK")
     compose(_cfg(), _items(), WHEN, client=client, total=470)
-    system = client.messages.calls[0]["system"]
+    system = client.chat.completions.calls[0]["messages"][0]["content"]
     assert "470" in system and "2" in system      # 470 flagged, 2 shown
 
 

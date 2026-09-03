@@ -6,10 +6,14 @@ poll_interval_weekend_seconds: 10800 # 3 hours on weekends
 warm_start: true
 
 llm:
-  model: claude-sonnet-5
+  # LLM calls go through OpenRouter (OpenAI-compatible API); key = OR_NewsFilterAPI.
+  # Leave model blank to let OpenRouter route ("openrouter/auto"), pin a slug
+  # (e.g. anthropic/claude-sonnet-4.5), or point at an OpenRouter preset
+  # (@preset/<name>) to pick the model on OpenRouter's side.
+  model: ""
   max_tokens: 1024
-  batch_size: 20                     # items per Claude call
-  rewrite: true                      # true = Claude rewrites kept items to your style
+  batch_size: 20                     # items per LLM call
+  rewrite: true                      # true = the model rewrites kept items to your style
   # The interest profile is the heart of the filter. Plain English.
   interest_profile: |
     KEEP news about:
@@ -92,7 +96,8 @@ cadbury_bot:
   timezone: America/New_York
   send_hour: 16                      # 24h ET wall clock
   send_minute: 30                    # 16:30 ET = regular close + 30 min
-  model: claude-sonnet-5
+  model: ""                          # via OpenRouter (key = OR_CadburySummaryAPI);
+                                     # blank ⇒ openrouter/auto, or pin a slug/preset
   max_tokens: 3000
   max_items: 12                      # numbered points the recap should contain
   digest_max_items: 40              # busy days: only the 40 highest-priority

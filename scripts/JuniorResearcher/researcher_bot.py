@@ -2,7 +2,6 @@ import os
 import discord
 from discord.ext import commands
 from openai import AsyncOpenAI
-from google import genai
 import asyncio
 import io
 from datetime import datetime, timedelta, timezone
@@ -22,11 +21,11 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 load_dotenv() # Load root .env for discord token if needed
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "local").lower()
-LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:1234/v1")
-LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "deepseek-r1-distill-qwen-7b")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+# LLM calls go through OpenRouter (OpenAI-compatible API).
+OPENROUTER_API_KEY = os.getenv("OR_JuniorResearcherAPI")
+# Blank ⇒ "openrouter/auto" (OpenRouter routes); pin a slug or "@preset/<name>"
+# to choose the model on OpenRouter's side.
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/auto")
 REPORT_CACHE_DAYS = float(os.getenv("REPORT_CACHE_DAYS", "3"))
 
 # Initialize Discord Bot
@@ -34,23 +33,17 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Initialize Clients based on provider
-llm_client = None
-gemini_client = None
-anthropic_client = None
-
-if LLM_PROVIDER == "gemini" and GEMINI_API_KEY:
-    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-elif LLM_PROVIDER == "anthropic" and ANTHROPIC_API_KEY:
-    import anthropic
-    anthropic_client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-elif LLM_PROVIDER == "local":
-    llm_client = AsyncOpenAI(base_url=LLM_BASE_URL, api_key="not-needed")
+# Single LLM client — OpenRouter. Fall back to a placeholder key so import never
+# crashes; the `!research` handler checks OPENROUTER_API_KEY and errors cleanly.
+ai_client = AsyncOpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=OPENROUTER_API_KEY or "not-set",
+)
 
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user.name}')
-    print(f'Using {LLM_PROVIDER.upper()} for research generation.')
+    print(f'Using OpenRouter ({OPENROUTER_MODEL}) for research generation.')
 
 def _report_filename(ticker: str) -> str:
     return f"{ticker}_Research_Report.pdf"
@@ -114,51 +107,20 @@ async def research(ctx, ticker: str):
         prompt = prompt_template.replace("{TICKER}", ticker)
         prompt = prompt.replace("{FINVIZ_DATA}", db_data)
 
-        # Call the selected LLM
-        if LLM_PROVIDER == "gemini" and gemini_client:
-            response = await asyncio.to_thread(gemini_client.models.generate_content, model='gemini-3.1-pro-preview', contents=prompt)
-            llm_output = response.text
-        elif LLM_PROVIDER == "anthropic" and anthropic_client:
-            response = await anthropic_client.messages.create(
-                model="claude-3-7-sonnet-20250219",
-                max_tokens=4000,
-                system="You are a professional equity research analyst.",
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            llm_output = response.content[0].text
-        elif LLM_PROVIDER == "local" and llm_client:
-            response = await llm_client.chat.completions.create(
-                model=LLM_MODEL,
-                messages=[
-                    {"role": "system", "content": "You are a professional equity research analyst."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=2500
-            )
-            llm_output = response.choices[0].message.content
-        elif LLM_PROVIDER == "openrouter":
-            from openai import AsyncOpenAI
-            openrouter_client = AsyncOpenAI(
-                base_url="https://openrouter.ai/api/v1",
-                api_key=os.getenv("OPENROUTER_API_KEY")
-            )
-            model = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
-            response = await openrouter_client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": "You are a professional equity research analyst."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=2500
-            )
-            llm_output = response.choices[0].message.content
-        else:
-            await ctx.send(f"❌ Error: Invalid LLM_PROVIDER '{LLM_PROVIDER}' configured or missing API key.")
+        # Call the LLM via OpenRouter
+        if not OPENROUTER_API_KEY:
+            await ctx.send("❌ Error: OR_JuniorResearcherAPI is not set.")
             return
+        response = await ai_client.chat.completions.create(
+            model=OPENROUTER_MODEL,
+            messages=[
+                {"role": "system", "content": "You are a professional equity research analyst."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=2500
+        )
+        llm_output = response.choices[0].message.content
 
         # Generate PDF Bytes using generator
         await msg.edit(content=f"📄 Generating PDF report for **{ticker}**...")

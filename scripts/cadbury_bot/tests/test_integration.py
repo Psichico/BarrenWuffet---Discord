@@ -53,26 +53,23 @@ class _RecordingSink(Sink):
         return True
 
 
-class _Block:
-    def __init__(self, text):
-        self.text = text
-
-
-class _Resp:
-    def __init__(self, text):
-        self.content = [_Block(text)]
+def _oai_resp(text):
+    """OpenAI-compatible response: .choices[0].message.content"""
+    msg = type("_Msg", (), {"content": text})()
+    return type("_Resp", (), {"choices": [type("_Choice", (), {"message": msg})()]})()
 
 
 class _FakeClient:
-    class messages:
-        calls = []
+    class chat:
+        class completions:
+            calls = []
 
-        @classmethod
-        def create(cls, **kwargs):
-            cls.calls.append(kwargs)
-            digest = kwargs["messages"][0]["content"]
-            return _Resp("BIG DAY.\n\nHere's the recap, in the order it "
-                         "crossed today:\n" + digest + "\n\nSEE YOU TOMORROW.")
+            @classmethod
+            def create(cls, **kwargs):
+                cls.calls.append(kwargs)
+                digest = kwargs["messages"][-1]["content"]
+                return _oai_resp("BIG DAY.\n\nHere's the recap, in the order it "
+                                 "crossed today:\n" + digest + "\n\nSEE YOU TOMORROW.")
 
 
 class _FakeMailer:
@@ -108,7 +105,7 @@ def test_poll_records_then_tick_emails_once(tmp_path, monkeypatch):
     cad_store = CadburyStore(db)
     recorder = KeptItemRecorder(cad_store, timezone="America/New_York")
     mailer = _FakeMailer()
-    _FakeClient.messages.calls = []
+    _FakeClient.chat.completions.calls = []
     bot = CadburyBot(cfg=_cfg(), store=cad_store, recorder=recorder,
                      composer=compose, mailer=mailer, client=_FakeClient())
 

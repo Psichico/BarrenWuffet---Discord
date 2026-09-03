@@ -3,7 +3,7 @@
     python scripts/cadbury_bot/verify_cadbury.py
 
 Drives the REAL store / recorder / composer / scheduler with FAKE external APIs
-(Anthropic + SMTP) and asserts the full behaviour. Mirrors
+(the OpenRouter LLM call + SMTP) and asserts the full behaviour. Mirrors
 ``scripts/verify_flow.py``. Exits 0 on success, 1 on any failed check.
 """
 
@@ -38,14 +38,10 @@ def check(label, cond):
     print(f"  [{status}] {label}")
 
 
-class _Block:
-    def __init__(self, text):
-        self.text = text
-
-
-class _Resp:
-    def __init__(self, text):
-        self.content = [_Block(text)]
+def _oai_resp(text):
+    """OpenAI-compatible response: .choices[0].message.content"""
+    msg = type("_Msg", (), {"content": text})()
+    return type("_Resp", (), {"choices": [type("_Choice", (), {"message": msg})()]})()
 
 
 class _FakeClient:
@@ -54,27 +50,28 @@ class _FakeClient:
     def __init__(self):
         self.calls = []
 
-    class _M:
+    class _Completions:
         def __init__(self, outer):
             self.outer = outer
 
         def create(self, **kwargs):
             self.outer.calls.append(kwargs)
-            digest = kwargs["messages"][0]["content"]
-            return _Resp("A LOT HAPPENED TODAY.\n\nHere's the recap, in the "
-                         "order it crossed today:\n" + digest +
-                         "\n\nWALL STREET NEVER SLEEPS.")
+            digest = kwargs["messages"][-1]["content"]
+            return _oai_resp("A LOT HAPPENED TODAY.\n\nHere's the recap, in the "
+                             "order it crossed today:\n" + digest +
+                             "\n\nWALL STREET NEVER SLEEPS.")
 
     @property
-    def messages(self):
-        return _FakeClient._M(self)
+    def chat(self):
+        return type("_Chat", (), {"completions": _FakeClient._Completions(self)})()
 
 
 class _BoomClient:
-    class messages:
-        @staticmethod
-        def create(**kwargs):
-            raise RuntimeError("model unavailable")
+    class chat:
+        class completions:
+            @staticmethod
+            def create(**kwargs):
+                raise RuntimeError("model unavailable")
 
 
 class _FakeMailer:
@@ -151,7 +148,7 @@ def main() -> int:
     body = mailer.sent[0][1]
     check("recap references seeded tickers in order",
           body.find("$NVDA") < body.find("$MU") < body.find("$AMAT"))
-    check("model prompt had {max_items} substituted", "up to 12" in client.calls[0]["system"])
+    check("model prompt had {max_items} substituted", "up to 12" in client.calls[0]["messages"][0]["content"])
     bot.tick(now=datetime.datetime(2026, 8, 26, 18, 0))
     check("second tick same day -> still one send", len(mailer.sent) == 1)
     store.close()
@@ -208,9 +205,9 @@ def main() -> int:
                      composer=compose, mailer=mailer, client=client)
     bot.tick(now=datetime.datetime(2026, 9, 1, 16, 35))
     check("email sent", len(mailer.sent) == 1)
-    digest_sent = client.calls[0]["messages"][0]["content"]
+    digest_sent = client.calls[0]["messages"][-1]["content"]
     check("at most 40 items reach the model", digest_sent.count("\n") <= 39)
-    check("model told the true volume (419)", "419" in client.calls[0]["system"])
+    check("model told the true volume (419)", "419" in client.calls[0]["messages"][0]["content"])
     check("all 8 high-urgency items kept in the cap",
           all(f"$T{n}" in digest_sent for n in (50, 100, 150, 200, 250, 300, 350, 400)))
     store.close()

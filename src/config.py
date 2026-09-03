@@ -17,7 +17,10 @@ from dotenv import load_dotenv
 
 @dataclass
 class LLMConfig:
-    model: str = "claude-haiku-4-5"
+    # Blank ⇒ "openrouter/auto" (OpenRouter picks the model). Pin a slug in
+    # config.yaml (e.g. "anthropic/claude-sonnet-4.5") or use an OpenRouter
+    # preset ("@preset/<name>") to choose the model on OpenRouter's side.
+    model: str = ""
     max_tokens: int = 1024
     batch_size: int = 20
     rewrite: bool = True
@@ -44,7 +47,7 @@ class Settings:
 
     # Secrets pulled from env (present here for convenience; components read env
     # directly where the plan requires it).
-    anthropic_api_key: str = ""
+    openrouter_api_key: str = ""
     finviz_auth_token: str = ""
 
 
@@ -56,7 +59,7 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
 
     llm_raw = raw.get("llm", {}) or {}
     llm = LLMConfig(
-        model=llm_raw.get("model", "claude-haiku-4-5"),
+        model=llm_raw.get("model", ""),
         max_tokens=int(llm_raw.get("max_tokens", 1024)),
         batch_size=int(llm_raw.get("batch_size", 20)),
         rewrite=bool(llm_raw.get("rewrite", True)),
@@ -80,6 +83,6 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
         sources=raw.get("sources", {}) or {},
         sinks=raw.get("sinks", {}) or {},
         warm_start=bool(raw.get("warm_start", True)),
-        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+        openrouter_api_key=os.environ.get("OR_NewsFilterAPI", ""),
         finviz_auth_token=os.environ.get("FINVIZ_AUTH_TOKEN", ""),
     )

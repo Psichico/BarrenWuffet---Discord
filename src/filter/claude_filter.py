@@ -1,15 +1,16 @@
 """ClaudeFilter: keep/drop + urgency + optional rewrite. See §11.
 
-Sends items in batches to Claude, requires strict JSON out, and mutates each
-NewsItem in place. Robust to malformed responses: on any parse failure the
-affected items default to keep=False so a broken response can never flood the
-sinks or crash the loop.
+Sends items in batches to an LLM (via OpenRouter's OpenAI-compatible API),
+requires strict JSON out, and mutates each NewsItem in place. Robust to malformed
+responses: on any parse failure the affected items default to keep=False so a
+broken response can never flood the sinks or crash the loop.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from typing import Optional
 
@@ -18,6 +19,12 @@ from src.filter.base import Filter
 from src.models import NewsItem
 
 logger = logging.getLogger(__name__)
+
+# OpenRouter's OpenAI-compatible endpoint. The API key comes from OR_NewsFilterAPI.
+_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+_API_KEY_ENV_VAR = "OR_NewsFilterAPI"
+# Used when no model is pinned in config — lets OpenRouter route the request.
+_DEFAULT_MODEL = "openrouter/auto"
 
 _VALID_URGENCY = {"high", "medium", "low"}
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
@@ -62,10 +69,10 @@ no prose, no markdown fences. One object per input item:
 
 class ClaudeFilter(Filter):
     def __init__(self, llm: LLMConfig, client=None):
-        """``client`` is an Anthropic client instance. It is injected so tests
-        can pass a mock; in production main.py constructs the real client. Kept
-        optional/lazy so the rest of the system imports cleanly before the API
-        key/SDK is wired in.
+        """``client`` is an OpenAI-compatible client pointed at OpenRouter. It is
+        injected so tests can pass a mock; in production it is built lazily on
+        first use from the ``OR_NewsFilterAPI`` env var. Kept optional/lazy so the
+        rest of the system imports cleanly before the API key/SDK is wired in.
         """
         self.llm = llm
         self._client = client
@@ -74,9 +81,12 @@ class ClaudeFilter(Filter):
         if self._client is None:
             # Lazy import so the package imports without the SDK installed until
             # the API is wired in.
-            from anthropic import Anthropic
+            from openai import OpenAI
 
-            self._client = Anthropic()
+            self._client = OpenAI(
+                base_url=_OPENROUTER_BASE_URL,
+                api_key=os.environ.get(_API_KEY_ENV_VAR),
+            )
         return self._client
 
     # --- public API -------------------------------------------------------
@@ -115,16 +125,18 @@ class ClaudeFilter(Filter):
         user_message = self._build_user_message(batch)
 
         try:
-            response = self._get_client().messages.create(
-                model=self.llm.model,
+            response = self._get_client().chat.completions.create(
+                model=self.llm.model or _DEFAULT_MODEL,
                 max_tokens=self.llm.max_tokens,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}],
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
             )
             text = self._extract_text(response)
             parsed = self._parse_json(text)
         except Exception as e:  # never crash the loop on API/parse failure
-            logger.error("Claude filter call failed: %s — defaulting batch to "
+            logger.error("News filter call failed: %s — defaulting batch to "
                          "keep=False", e)
             self._fail_batch(batch, "filter_parse_error")
             return
@@ -208,13 +220,13 @@ class ClaudeFilter(Filter):
 
     @staticmethod
     def _extract_text(response) -> str:
-        # Anthropic SDK: response.content is a list of blocks with .text
-        parts = []
-        for block in getattr(response, "content", []) or []:
-            text = getattr(block, "text", None)
-            if text:
-                parts.append(text)
-        return "".join(parts).strip()
+        # OpenAI-compatible SDK: response.choices[0].message.content
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            return ""
+        message = getattr(choices[0], "message", None)
+        content = getattr(message, "content", None) if message is not None else None
+        return (content or "").strip()
 
     @staticmethod
     def _parse_json(text: str) -> Optional[list]:
@@ -226,11 +238,11 @@ class ClaudeFilter(Filter):
         try:
             data = json.loads(cleaned)
         except json.JSONDecodeError as e:
-            logger.error("Claude filter returned non-JSON: %s | raw=%.200r",
+            logger.error("News filter returned non-JSON: %s | raw=%.200r",
                          e, text)
             return None
         if not isinstance(data, list):
-            logger.error("Claude filter JSON was not a list: %.200r", text)
+            logger.error("News filter JSON was not a list: %.200r", text)
             return None
         return data
 

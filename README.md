@@ -1,8 +1,9 @@
 # News Alert Bot
 
-A pluggable news-alert pipeline: **sources → dedupe → Claude filter → sinks**.
-It polls Finviz Elite for watchlist news, uses Claude (`claude-haiku-4-5`) to
-keep/drop, rewrite, and tag urgency, then routes items to Discord channels.
+A pluggable news-alert pipeline: **sources → dedupe → LLM filter → sinks**.
+It polls Finviz Elite for watchlist news, uses an LLM via **OpenRouter**
+(model chosen on OpenRouter's side; `openrouter/auto` by default) to keep/drop,
+rewrite, and tag urgency, then routes items to Discord channels.
 
 The architecture is deliberately modular. Adding a new **source** (X/Twitter, a
 Finviz screener) or a new **sink** (Telegram, a second Discord channel) never
@@ -12,7 +13,7 @@ line of config.
 ```
 ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
 │ SOURCES  │──▶│ DEDUPE   │──▶│ FILTER   │──▶│ SINKS    │
-│finviz_news│  │ SQLite   │   │ Claude   │   │#news     │
+│finviz_news│  │ SQLite   │   │ LLM      │   │#news     │
 │[screener]│   │ seen ids │   │keep/drop │   │#urgent   │
 │[x]       │   │          │   │+urgency  │   │[telegram]│
 └──────────┘   └──────────┘   └──────────┘   └──────────┘
@@ -55,9 +56,10 @@ pytest -q
 
 ## Configuration
 
-- **Secrets** live in `.env` (never committed): `ANTHROPIC_API_KEY`,
-  `FINVIZ_AUTH_TOKEN`, `DISCORD_NEWS_WEBHOOK_URL`,
-  `DISCORD_URGENT_WEBHOOK_URL` (v1.1), `DEDUPE_PATH`.
+- **Secrets** live in `.env` (never committed): `OR_NewsFilterAPI` (OpenRouter
+  key for the filter), `FINVIZ_AUTH_TOKEN`, `DISCORD_NEWS_WEBHOOK_URL`,
+  `DISCORD_URGENT_WEBHOOK_URL` (v1.1), `DEDUPE_PATH`. The optional recap bolt-on
+  adds `OR_CadburySummaryAPI`.
 - **Tunables + interest profile** live in `config.yaml`: poll interval, the LLM
   model/prompt, watchlist, sources, sinks, dedupe pruning.
 
@@ -85,7 +87,8 @@ Nothing else changes. `FinvizScreenerSource` is stubbed in
 
 A self-contained bolt-on that emails a plain-text "Market Recap" of the day's
 flagged headlines at 16:30 ET on weekdays. Enable the `cadbury_bot:` block in
-`config.yaml` and set `GMAIL_ADDRESS` + `GMAIL_APP_PASSWORD` (a Google
+`config.yaml` and set `OR_CadburySummaryAPI` (its own OpenRouter key),
+`GMAIL_ADDRESS`, and `GMAIL_APP_PASSWORD` (a Google
 [App Password](https://myaccount.google.com/apppasswords)) in `.env` / the Render
 dashboard. It plugs into the core through two generic `Orchestrator` hooks and
 touches nothing else; `scripts/cadbury_bot/README.md` has the details and a
@@ -97,8 +100,8 @@ Deploy as a **Background Worker**, not a Web Service — there is no HTTP port.
 
 1. Push the repo to GitHub.
 2. Render Dashboard → New → Blueprint → point at the repo (reads `render.yaml`).
-3. Set the secret env vars in the dashboard (Anthropic key, Finviz token, one or
-   both Discord webhooks).
+3. Set the secret env vars in the dashboard (OpenRouter key(s), Finviz token, one
+   or both Discord webhooks).
 4. Deploy and watch the logs for the first successful poll.
 
 **Persistence:** `render.yaml` attaches a 1 GB persistent disk at `/var/data` and
@@ -108,8 +111,9 @@ current items as seen on first boot with an empty store — so even without a di
 a restart won't dump the backlog to Discord.
 
 **Cost:** Render's free tier does not keep workers alive 24/7 — use the **Starter
-worker (~$7/mo)**. Claude (Haiku) runs ~$2–4/mo at 5-min polling. Finviz Elite is
-already owned. **Total ≈ $10/mo.**
+worker (~$7/mo)**. LLM spend depends on the model OpenRouter routes to at 5-min
+polling — watch the per-key usage on the OpenRouter dashboard. Finviz Elite is
+already owned.
 
 ## Notes on the Finviz integration
 

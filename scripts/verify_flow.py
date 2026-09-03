@@ -54,30 +54,32 @@ class FakeFinvizSource(Source):
         ]
 
 
+class _OAIResp:
+    """OpenAI-compatible response: .choices[0].message.content"""
+    def __init__(self, text):
+        msg = type("_Msg", (), {"content": text})()
+        self.choices = [type("_Choice", (), {"message": msg})()]
+
+
 class FakeClaudeClient:
-    """Mimics anthropic client: .messages.create() -> resp.content[].text"""
-    class messages:
-        calls = 0
+    """Mimics an OpenAI-compatible client:
+    .chat.completions.create() -> resp.choices[0].message.content"""
+    class chat:
+        class completions:
+            calls = 0
 
-        @classmethod
-        def create(cls, **kwargs):
-            cls.calls += 1
-            text = (
-                '[{"index": 0, "keep": true, "urgency": "high", '
-                '"reason": "earnings beat", "rewrite": "NVDA tops Q2 estimates with record earnings."},'
-                '{"index": 1, "keep": true, "urgency": "medium", '
-                '"reason": "product launch", "rewrite": "AMD debuts MI400 datacenter GPU."},'
-                '{"index": 2, "keep": false, "urgency": "low", '
-                '"reason": "routine insider sale", "rewrite": ""}]'
-            )
-
-            class Block:
-                def __init__(self, t): self.text = t
-
-            class Resp:
-                def __init__(self, t): self.content = [Block(t)]
-
-            return Resp(text)
+            @classmethod
+            def create(cls, **kwargs):
+                cls.calls += 1
+                text = (
+                    '[{"index": 0, "keep": true, "urgency": "high", '
+                    '"reason": "earnings beat", "rewrite": "NVDA tops Q2 estimates with record earnings."},'
+                    '{"index": 1, "keep": true, "urgency": "medium", '
+                    '"reason": "product launch", "rewrite": "AMD debuts MI400 datacenter GPU."},'
+                    '{"index": 2, "keep": false, "urgency": "low", '
+                    '"reason": "routine insider sale", "rewrite": ""}]'
+                )
+                return _OAIResp(text)
 
 
 posted = []  # (webhook_url, payload)
@@ -94,7 +96,7 @@ def fake_post(url, json=None, timeout=None):
 
 
 def _llm():
-    return LLMConfig(model="claude-haiku-4-5", batch_size=20, rewrite=True,
+    return LLMConfig(model="", batch_size=20, rewrite=True,
                      interest_profile="p", urgency_guidance="g", rewrite_style="s")
 
 
@@ -117,7 +119,7 @@ def main():
 
     print("\n=== 1. Single poll: fetch -> dedupe -> filter -> route -> deliver ===")
     fake_client = FakeClaudeClient()
-    fake_client.messages.calls = 0
+    fake_client.chat.completions.calls = 0
     news_sink, urgent_sink = _sinks()
     db_path = os.path.join(tempfile.mkdtemp(), "seen.db")
     store = SeenStore(db_path)
@@ -132,7 +134,7 @@ def main():
     news_titles = [p[1]["embeds"][0]["title"] for p in news_posts]
     urgent_titles = [p[1]["embeds"][0]["title"] for p in urgent_posts]
 
-    check("Claude filter called once (batched)", fake_client.messages.calls == 1)
+    check("Claude filter called once (batched)", fake_client.chat.completions.calls == 1)
     check("news channel got 2 kept items (high+medium)", len(news_posts) == 2)
     check("urgent channel got 1 item (high only)", len(urgent_posts) == 1)
     check("high-urgency NVDA in BOTH channels",
@@ -147,9 +149,9 @@ def main():
 
     print("\n=== 2. Dedupe: a second identical poll delivers NOTHING ===")
     posted.clear()
-    fake_client.messages.calls = 0
+    fake_client.chat.completions.calls = 0
     orch._run_once()
-    check("no new items -> filter NOT called", fake_client.messages.calls == 0)
+    check("no new items -> filter NOT called", fake_client.chat.completions.calls == 0)
     check("no duplicate deliveries", len(posted) == 0)
 
     print("\n=== 3. Restart safety: reopen store, same source, no re-alert ===")
@@ -179,12 +181,11 @@ def main():
 
     print("\n=== 5. Malformed Claude response never floods / never crashes ===")
     class BadClient:
-        class messages:
-            @staticmethod
-            def create(**kwargs):
-                class Block: text = "this is not json"
-                class Resp: content = [Block()]
-                return Resp()
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kwargs):
+                    return _OAIResp("this is not json")
     store4 = _tmp_store()
     orch4 = Orchestrator([FakeFinvizSource()], ClaudeFilter(_llm(), client=BadClient()),
                          list(_sinks()), store4, poll_interval_seconds=1,
@@ -235,22 +236,19 @@ def main():
     class StoryKeyClient:
         """Simulates Claude correcting the ticker and emitting a consistent
         story_key for the same event across two independent calls."""
-        class messages:
-            calls = 0
+        class chat:
+            class completions:
+                calls = 0
 
-            @classmethod
-            def create(cls, **kwargs):
-                cls.calls += 1
-                text = (
-                    '[{"index": 0, "keep": true, "urgency": "medium", '
-                    '"reason": "sp500", "rewrite": "RDDT confirmed for S&P 500 inclusion.", '
-                    '"ticker": "RDDT", "story_key": "rddt-sp500-inclusion"}]'
-                )
-                class Block:
-                    def __init__(self, t): self.text = t
-                class Resp:
-                    def __init__(self, t): self.content = [Block(t)]
-                return Resp(text)
+                @classmethod
+                def create(cls, **kwargs):
+                    cls.calls += 1
+                    text = (
+                        '[{"index": 0, "keep": true, "urgency": "medium", '
+                        '"reason": "sp500", "rewrite": "RDDT confirmed for S&P 500 inclusion.", '
+                        '"ticker": "RDDT", "story_key": "rddt-sp500-inclusion"}]'
+                    )
+                    return _OAIResp(text)
 
     story_client = StoryKeyClient()
     news_sink7, _ = _sinks()

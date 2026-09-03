@@ -53,7 +53,7 @@ class CadburyConfig:
     timezone: str = "America/New_York"
     send_hour: int = 16
     send_minute: int = 30
-    model: str = "claude-sonnet-5"
+    model: str = ""               # blank ⇒ "openrouter/auto" (see composer.py)
     max_tokens: int = 3000
     max_items: int = 12           # numbered points the model should output
     digest_max_items: int = 40    # day's items actually fed to the model / fallback
@@ -94,7 +94,7 @@ def load_cadbury_config(config_path: str = "config.yaml") -> Optional[CadburyCon
         timezone=str(block.get("timezone", "America/New_York")),
         send_hour=int(block.get("send_hour", 16)),
         send_minute=int(block.get("send_minute", 30)),
-        model=str(block.get("model", "claude-sonnet-5")),
+        model=str(block.get("model", "")),
         max_tokens=int(block.get("max_tokens", 3000)),
         max_items=int(block.get("max_items", 12)),
         digest_max_items=int(block.get("digest_max_items", 40)),

@@ -22,7 +22,7 @@ poll loop (src/orchestrator.py)
   └─ after each iteration ──────────────▶ post_iteration_hook()
                                              └▶ CadburyBot.tick()
                                                   ├─ gate: weekday? ≥16:30 ET? not sent today?
-                                                  ├─ compose(): Claude writes the recap
+                                                  ├─ compose(): an LLM (OpenRouter) writes the recap
                                                   │             (fail-open: raw list on error)
                                                   └─ EmailMailer.send(): Gmail SMTP
                                                        └▶ cadbury_runs  (marks the day done)
@@ -42,7 +42,7 @@ UTC-4 offset — hence `tzdata` in `requirements.txt`.
 | `enabled` | `false` | master switch; `false`/absent ⇒ feature is inert |
 | `timezone` | `America/New_York` | zone for the 16:30 trigger + the "day" bucket |
 | `send_hour` / `send_minute` | `16` / `30` | ET wall-clock trigger |
-| `model` | `claude-sonnet-5` | model for the recap write-up |
+| `model` | `""` ⇒ `openrouter/auto` | OpenRouter model/slug/`@preset` for the recap write-up |
 | `max_tokens` | `2000` | response cap |
 | `max_items` | `12` | merge related headlines beyond this |
 | `recipients` | – | list of To: addresses (not a secret) |
@@ -55,12 +55,15 @@ UTC-4 offset — hence `tzdata` in `requirements.txt`.
 
 ## Secrets (env only)
 
+- `OR_CadburySummaryAPI` — the recap's own **OpenRouter** API key (OpenAI-
+  compatible endpoint `https://openrouter.ai/api/v1`). Separate key from the
+  filter's so recap spend is tracked on its own.
 - `GMAIL_ADDRESS` — the sending Gmail address.
 - `GMAIL_APP_PASSWORD` — a Google **App Password** (the account needs 2-Step
   Verification): <https://myaccount.google.com/apppasswords>. Not your normal
   password.
 
-Add both to `.env` locally and to the `news-bot` service in `render.yaml`
+Add all three to `.env` locally and to the `news-bot` service in `render.yaml`
 (already listed there, `sync: false`).
 
 ## Manual trigger / smoke test
@@ -99,7 +102,7 @@ The core suite (`pytest -q`, `python scripts/verify_flow.py`) is unaffected.
    (`on_item_kept`, `post_iteration_hook`), the two `self.…` assignments, and the
    two guarded call sites. They are generic no-ops, so leaving them is harmless.
 4. `config.yaml` — delete the `cadbury_bot:` block.
-5. `render.yaml` / `.env.example` — remove `GMAIL_ADDRESS` / `GMAIL_APP_PASSWORD`
-   if nothing else uses them.
+5. `render.yaml` / `.env.example` — remove `OR_CadburySummaryAPI`,
+   `GMAIL_ADDRESS`, and `GMAIL_APP_PASSWORD` if nothing else uses them.
 6. `requirements.txt` — remove `tzdata` if nothing else uses it.
 7. Optional: `sqlite3 seen.db 'DROP TABLE cadbury_kept_items; DROP TABLE cadbury_runs;'`

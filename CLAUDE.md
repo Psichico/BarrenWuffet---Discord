@@ -10,8 +10,9 @@
 ## 1. What this is (one paragraph)
 
 A long-running Python worker that polls **Finviz Elite** for stock-market news on
-a watchlist, sends each new headline to **Claude** (`claude-sonnet-5`) which
-decides *keep or drop*, rewrites kept headlines into trader-friendly one-liners,
+a watchlist, sends each new headline to an **LLM via OpenRouter** (OpenAI-
+compatible API; model chosen on OpenRouter's side, `openrouter/auto` by default)
+which decides *keep or drop*, rewrites kept headlines into trader-friendly one-liners,
 and tags each with an **urgency** (`high`/`medium`/`low`). Kept items are
 delivered to **Discord** via webhooks. A `#news` channel gets everything kept; a
 `#urgent` channel gets only high-urgency items. State (which items were already
@@ -59,8 +60,8 @@ Losing news is worse than a rare duplicate.
 ```
 src/
   main.py              Entrypoint (`python -m src.main`). Builds every component
-                       from config via the registries, then runs the loop. The
-                       real Anthropic client is created here.
+                       from config via the registries, then runs the loop.
+                       ClaudeFilter builds its OpenRouter client lazily from here.
   orchestrator.py      The poll loop. Knows ONLY the Source/Filter/Sink
                        interfaces — never a concrete class. Handles warm-start,
                        SIGTERM, per-iteration try/except, dedupe ordering.
@@ -89,13 +90,16 @@ src/
   filter/
     base.py            Filter ABC: `process(items) -> items` (mutates in place).
     claude_filter.py   ClaudeFilter. Builds the system prompt from config, batches
-                       items, calls Claude, parses strict JSON, coerces bad urgency
-                       to "low", and on ANY failure defaults items to keep=False so
-                       a broken response can never flood Discord or crash the loop.
-                       Also has Claude correct/null a wrong source-supplied ticker
-                       (item.ticker) and emit a content-derived "story_key" used
-                       for cross-source/cross-poll duplicate-story suppression
-                       (see the dedupe.py and orchestrator.py notes below).
+                       items, calls the LLM (OpenRouter, OpenAI-compatible
+                       `chat.completions`; key = OR_NewsFilterAPI), parses strict
+                       JSON, coerces bad urgency to "low", and on ANY failure
+                       defaults items to keep=False so a broken response can never
+                       flood Discord or crash the loop. Also has the model
+                       correct/null a wrong source-supplied ticker (item.ticker)
+                       and emit a content-derived "story_key" used for cross-
+                       source/cross-poll duplicate-story suppression (see the
+                       dedupe.py and orchestrator.py notes below). Class/file name
+                       kept as "Claude" for continuity; the provider is OpenRouter.
 
   sinks/
     base.py            Sink ABC: `accepts(item)` routing predicate (default True)
@@ -134,7 +138,7 @@ config.yaml            Non-secret tunables + the interest profile (the "brain" o
 .env.example           Template for secrets. Copy to .env and fill in.
 render.yaml            Render Background Worker + persistent disk definition.
 Dockerfile             Optional reproducible build (python:3.11-slim).
-requirements.txt       anthropic, requests, PyYAML, python-dotenv, pytest.
+requirements.txt       openai (OpenRouter client), requests, PyYAML, python-dotenv, pytest.
 README.md              Human-facing quickstart + deploy notes.
 ```
 
@@ -153,8 +157,19 @@ Sinks never store the webhook URL in `config.yaml`. Instead config names the
 *env var* (`webhook_env_var: DISCORD_NEWS_WEBHOOK_URL`) and the sink reads the
 actual URL from the environment. This keeps secrets out of git entirely.
 
+All LLM calls go through **OpenRouter** (OpenAI-compatible API, `https://openrouter.ai/api/v1`),
+one API key per component so usage/limits are tracked separately:
+- `OR_NewsFilterAPI` — ClaudeFilter (`src/filter/claude_filter.py`).
+- `OR_CadburySummaryAPI` — the recap composer (`scripts/cadbury_bot/composer.py`).
+- `OR_JuniorResearcherAPI` — the `!research` bot (`scripts/JuniorResearcher/`).
+
+The model is chosen on OpenRouter's side: leave `model` blank in config
+(⇒ `openrouter/auto`), pin a slug (`anthropic/claude-sonnet-4.5`), or point at an
+OpenRouter preset (`@preset/<name>`). TradingAgents (`scripts/TradingAgents/`)
+still talks to a local LM Studio endpoint and needs no key.
+
 Required env vars (see `.env.example`):
-- `ANTHROPIC_API_KEY` — read automatically by the Anthropic SDK.
+- `OR_NewsFilterAPI` — OpenRouter key for the news filter.
 - `FINVIZ_AUTH_TOKEN` — read by FinvizNewsSource.
 - `DISCORD_NEWS_WEBHOOK_URL` — the #news channel.
 - `DISCORD_URGENT_WEBHOOK_URL` — the #urgent channel (optional in v1).
@@ -167,11 +182,14 @@ Required env vars (see `.env.example`):
 
 ### PROVEN (no secrets required)
 
-- **Unit tests:** `pytest -q` → 48 passing. Covers dedupe (id-level + story-level
-  keyed-TTL dedupe), Finviz CSV parsing + every error path, Claude JSON parsing +
-  coercion + no-crash + ticker-correction + story_key extraction, Discord routing +
-  embed + 429 retry + ticker-less title, and cross-source/cross-poll duplicate-story
-  suppression (including the failed-delivery-must-not-poison-the-cache case).
+- **Unit tests:** `pytest -q` → 87 passing (core + cadbury_bot). Covers dedupe
+  (id-level + story-level keyed-TTL dedupe), Finviz CSV parsing + every error
+  path, LLM JSON parsing + coercion + no-crash + ticker-correction + story_key
+  extraction + blank-model→`openrouter/auto`, Discord routing + embed + 429 retry
+  + ticker-less title, and cross-source/cross-poll duplicate-story suppression
+  (including the failed-delivery-must-not-poison-the-cache case). All LLM calls
+  are mocked with an OpenAI-compatible fake (`chat.completions.create` →
+  `choices[0].message.content`).
 - **End-to-end dry run:** `python scripts/verify_flow.py` → 20/20 checks. This
   drives the REAL orchestrator, filter, sinks, and store with FAKE external APIs
   and asserts the full behavior:
@@ -194,9 +212,10 @@ APIs.
 1. **The exact Finviz Elite news export contract** — the endpoint path, the query
    params, and the real CSV column headers. The code makes reasonable assumptions
    (below) and isolates them so fixing them touches ONE file.
-2. That the Claude prompt produces good keep/drop/urgency judgments on *real*
-   headlines (the JSON parsing is proven; the quality of decisions is a tuning
-   task once real data flows).
+2. That the filter prompt + the OpenRouter-routed model produce good keep/drop/
+   urgency judgments on *real* headlines (the JSON parsing is proven; the quality
+   of decisions is a tuning task once real data flows, and depends on which model
+   OpenRouter routes to).
 3. That the Discord webhook accepts our exact embed payload (format is per
    Discord's documented schema, but only a live POST confirms it end to end).
 
@@ -243,12 +262,12 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # 1. Prove the wiring with ZERO secrets
-pytest -q                      # unit tests -> 48 passed
+pytest -q                      # unit tests -> 87 passed
 python scripts/verify_flow.py  # end-to-end dry run -> 20/20
 
 # 2. Add secrets
 cp .env.example .env
-#   edit .env: ANTHROPIC_API_KEY, FINVIZ_AUTH_TOKEN, DISCORD_NEWS_WEBHOOK_URL
+#   edit .env: OR_NewsFilterAPI, FINVIZ_AUTH_TOKEN, DISCORD_NEWS_WEBHOOK_URL
 #   For a first live test, keep DEDUPE_PATH=./seen.db
 
 # 3. Test Finviz alone (cheap, no Claude/Discord spend). In a python shell:
@@ -293,10 +312,9 @@ Service would be marked unhealthy). `render.yaml` is committed and IaC-ready:
 `warm_start: true` flag is the secondary safety net if the disk is ever empty.
 
 **Cost:** free tier does NOT keep workers alive 24/7 → use Starter (~$7/mo).
-Claude (Sonnet, current default per §1 — upgraded from Haiku for ticker-
-correction/story-key reliability) costs noticeably more per call than Haiku at
-the same 5-min polling cadence; re-check actual spend against the Anthropic
-dashboard after a few days rather than trusting a stale estimate here.
+LLM spend now depends entirely on which model OpenRouter routes to (`openrouter/auto`
+or the slug/preset you pin) at the 5-min polling cadence — check the per-key usage
+on the OpenRouter dashboard after a few days rather than trusting an estimate here.
 
 ---
 
@@ -331,7 +349,8 @@ Self-contained package delivering a 16:30-ET weekday "Market Recap" email of the
 day's kept headlines. It attaches through two generic `Orchestrator` hooks
 (`on_item_kept`, `post_iteration_hook`) rather than editing the pipeline. Toggle
 with the `cadbury_bot:` block in `config.yaml` (`enabled: false` ⇒ inert); needs
-`GMAIL_ADDRESS` / `GMAIL_APP_PASSWORD` env vars. See
+`OR_CadburySummaryAPI` (OpenRouter) plus `GMAIL_ADDRESS` / `GMAIL_APP_PASSWORD`
+env vars. See
 `scripts/cadbury_bot/README.md` for config, `python -m scripts.cadbury_bot
 --force`, and the full removal checklist. Tests: `pytest -q
 scripts/cadbury_bot/tests` + `python scripts/cadbury_bot/verify_cadbury.py`.
@@ -369,14 +388,19 @@ python -m src.main              # run the real bot (needs .env)
 ## 12. Current state summary (for the next agent)
 
 - All modules from the implementation plan are built and wired.
-- 48/48 unit tests pass; 20/20 end-to-end dry-run checks pass.
+- 87/87 unit tests pass; 20/20 + 22/22 end-to-end dry-run checks pass.
 - The ONLY thing blocking a real run is confirming the Finviz Elite export
-  endpoint + CSV columns against a live token (§6), plus supplying the three
-  secrets. Everything downstream of a correctly-parsed `NewsItem` is verified.
+  endpoint + CSV columns against a live token (§6), plus supplying the secrets
+  (`OR_NewsFilterAPI` etc.). Everything downstream of a correctly-parsed
+  `NewsItem` is verified.
 - Screener source (`finviz_screener.py`) and X source are intentionally NOT built
   (v2) — the stub + registry pattern proves they're drop-ins.
-- Filter model is `claude-sonnet-5` (upgraded from Haiku — see §1, §8 cost note).
-  It now also corrects/nulls a mistagged source ticker and emits a `story_key`
+- All LLM calls go through **OpenRouter** (OpenAI-compatible API), one key per
+  component (`OR_NewsFilterAPI`, `OR_CadburySummaryAPI`, `OR_JuniorResearcherAPI`).
+  The model is selected on OpenRouter's side (`model` blank ⇒ `openrouter/auto`,
+  or pin a slug / `@preset/<name>`). `ClaudeFilter`/`claude_filter.py` keep their
+  names for continuity only.
+  The filter also corrects/nulls a mistagged source ticker and emits a `story_key`
   used by `SeenStore`'s second table for cross-source/cross-poll duplicate-story
   suppression (§10). Known limitation: `story_key` intentionally omits date/time,
   so two genuinely distinct same-day/same-ticker/same-event-type stories could
