@@ -43,7 +43,8 @@ UTC-4 offset — hence `tzdata` in `requirements.txt`.
 | `timezone` | `America/New_York` | zone for the 16:30 trigger + the "day" bucket |
 | `send_hour` / `send_minute` | `16` / `30` | ET wall-clock trigger |
 | `model` | `""` ⇒ `openrouter/auto` | OpenRouter model/slug/`@preset` for the recap write-up |
-| `max_tokens` | `2000` | response cap |
+| `max_tokens` | `16000` | response cap — counts reasoning + visible tokens; give reasoning models room |
+| `reasoning_effort` | `low` | `low`/`medium`/`high`/`minimal` for reasoning models; `""` ⇒ not sent |
 | `max_items` | `12` | merge related headlines beyond this |
 | `recipients` | – | list of To: addresses (not a secret) |
 | `subject_prefix` | `Market Recap` | ⇒ `Market Recap — Wed, Aug 26 2026` |

@@ -10,28 +10,32 @@ class _Msg:
 
 
 class _Choice:
-    def __init__(self, content):
+    def __init__(self, content, finish_reason="stop"):
         self.message = _Msg(content)
+        self.finish_reason = finish_reason
 
 
 class _Resp:
-    def __init__(self, text):
-        self.choices = [_Choice(text)]
+    def __init__(self, text, finish_reason="stop"):
+        self.choices = [_Choice(text, finish_reason)]
 
 
 class _FakeCompletions:
-    def __init__(self, text):
+    def __init__(self, text, finish_reason="stop"):
         self._text = text
+        self._finish_reason = finish_reason
         self.calls = []
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
-        return _Resp(self._text)
+        return _Resp(self._text, self._finish_reason)
 
 
 class _FakeClient:
-    def __init__(self, text):
-        self.chat = type("_Chat", (), {"completions": _FakeCompletions(text)})()
+    def __init__(self, text, finish_reason="stop"):
+        self.chat = type(
+            "_Chat", (), {"completions": _FakeCompletions(text, finish_reason)}
+        )()
 
 
 class _BoomCompletions:
@@ -103,6 +107,26 @@ def test_compose_falls_open_on_model_error():
     assert "auto-summary unavailable" in out
     assert "$TSM" in out and "$AMAT" in out       # raw list preserved
     assert out.splitlines()[0].isupper()          # still has an ALL-CAPS header
+
+
+def test_compose_falls_open_on_truncated_response():
+    # Non-empty but cut off at max_tokens (e.g. a reasoning model ate the budget).
+    client = _FakeClient("BIG DAY.\n\n1. $TSM did a thing. 2", finish_reason="length")
+    out = compose(_cfg(), _items(), WHEN, client=client)
+    assert "auto-summary unavailable" in out       # fell back, didn't email the stub
+    assert "$TSM" in out and "$AMAT" in out
+
+
+def test_compose_passes_reasoning_effort_when_set():
+    client = _FakeClient("OK")
+    compose(_cfg(reasoning_effort="low"), _items(), WHEN, client=client)
+    assert client.chat.completions.calls[0]["extra_body"] == {"reasoning": {"effort": "low"}}
+
+
+def test_compose_omits_reasoning_effort_when_blank():
+    client = _FakeClient("OK")
+    compose(_cfg(reasoning_effort=""), _items(), WHEN, client=client)
+    assert "extra_body" not in client.chat.completions.calls[0]
 
 
 def test_compose_tells_model_the_true_volume_when_capped():

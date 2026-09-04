@@ -124,15 +124,26 @@ class ClaudeFilter(Filter):
     def _process_batch(self, batch: list[NewsItem], system_prompt: str) -> None:
         user_message = self._build_user_message(batch)
 
+        create_kwargs = dict(
+            model=self.llm.model or _DEFAULT_MODEL,
+            max_tokens=self.llm.max_tokens,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        )
+        effort = (getattr(self.llm, "reasoning_effort", "") or "").strip().lower()
+        if effort:
+            # OpenRouter's unified reasoning knob; ignored by non-reasoning models.
+            create_kwargs["extra_body"] = {"reasoning": {"effort": effort}}
+
         try:
-            response = self._get_client().chat.completions.create(
-                model=self.llm.model or _DEFAULT_MODEL,
-                max_tokens=self.llm.max_tokens,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
-            )
+            response = self._get_client().chat.completions.create(**create_kwargs)
+            if self._finish_reason(response) == "length":
+                logger.error(
+                    "News filter response truncated at max_tokens (%d) — batch "
+                    "will fail closed. Raise llm.max_tokens or lower "
+                    "reasoning_effort.", self.llm.max_tokens)
             text = self._extract_text(response)
             parsed = self._parse_json(text)
         except Exception as e:  # never crash the loop on API/parse failure
@@ -227,6 +238,11 @@ class ClaudeFilter(Filter):
         message = getattr(choices[0], "message", None)
         content = getattr(message, "content", None) if message is not None else None
         return (content or "").strip()
+
+    @staticmethod
+    def _finish_reason(response) -> str:
+        choices = getattr(response, "choices", None) or []
+        return getattr(choices[0], "finish_reason", "") if choices else ""
 
     @staticmethod
     def _parse_json(text: str) -> Optional[list]:

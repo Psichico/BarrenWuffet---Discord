@@ -21,7 +21,8 @@ class LLMConfig:
     # config.yaml (e.g. "anthropic/claude-sonnet-4.5") or use an OpenRouter
     # preset ("@preset/<name>") to choose the model on OpenRouter's side.
     model: str = ""
-    max_tokens: int = 1024
+    max_tokens: int = 4000
+    reasoning_effort: str = ""  # low|medium|high|minimal; "" ⇒ don't send to OpenRouter
     batch_size: int = 20
     rewrite: bool = True
     interest_profile: str = ""
@@ -60,7 +61,8 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
     llm_raw = raw.get("llm", {}) or {}
     llm = LLMConfig(
         model=llm_raw.get("model", ""),
-        max_tokens=int(llm_raw.get("max_tokens", 1024)),
+        max_tokens=int(llm_raw.get("max_tokens", 4000)),
+        reasoning_effort=str(llm_raw.get("reasoning_effort", "") or ""),
         batch_size=int(llm_raw.get("batch_size", 20)),
         rewrite=bool(llm_raw.get("rewrite", True)),
         interest_profile=llm_raw.get("interest_profile", ""),

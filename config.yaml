@@ -11,7 +11,12 @@ llm:
   # (e.g. anthropic/claude-sonnet-4.5), or point at an OpenRouter preset
   # (@preset/<name>) to pick the model on OpenRouter's side.
   model: ""
-  max_tokens: 1024
+  # Counts reasoning + visible tokens. Must fit the full JSON array for a whole
+  # batch — if a model runs a thinking pass, 1024 truncates it and the batch
+  # fails closed (news silently dropped). Keep generous.
+  max_tokens: 4000
+  reasoning_effort: minimal         # low|medium|high|minimal; "" ⇒ don't send it.
+                                     # The filter never needs deep reasoning.
   batch_size: 20                     # items per LLM call
   rewrite: true                      # true = the model rewrites kept items to your style
   # The interest profile is the heart of the filter. Plain English.
@@ -98,7 +103,12 @@ cadbury_bot:
   send_minute: 30                    # 16:30 ET = regular close + 30 min
   model: ""                          # via OpenRouter (key = OR_CadburySummaryAPI);
                                      # blank ⇒ openrouter/auto, or pin a slug/preset
-  max_tokens: 3000
+  # Counts reasoning + visible tokens. Reasoning/"Pro" models (GPT-5 Pro, o-series,
+  # etc.) burn a chunk on hidden reasoning first — give plenty of headroom or the
+  # recap truncates mid-list.
+  max_tokens: 16000
+  reasoning_effort: low             # low|medium|high|minimal|"" — passed to OpenRouter
+                                     # for reasoning models; "" / unset = don't send it
   max_items: 12                      # numbered points the recap should contain
   digest_max_items: 40              # busy days: only the 40 highest-priority
                                     # (urgency then recency) go to the summariser

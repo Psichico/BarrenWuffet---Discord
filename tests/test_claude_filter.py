@@ -9,28 +9,32 @@ class _Msg:
 
 
 class _Choice:
-    def __init__(self, content):
+    def __init__(self, content, finish_reason="stop"):
         self.message = _Msg(content)
+        self.finish_reason = finish_reason
 
 
 class _Resp:
-    def __init__(self, text):
-        self.choices = [_Choice(text)]
+    def __init__(self, text, finish_reason="stop"):
+        self.choices = [_Choice(text, finish_reason)]
 
 
 class _FakeCompletions:
-    def __init__(self, text):
+    def __init__(self, text, finish_reason="stop"):
         self._text = text
+        self._finish_reason = finish_reason
         self.calls = []
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
-        return _Resp(self._text)
+        return _Resp(self._text, self._finish_reason)
 
 
 class _FakeClient:
-    def __init__(self, text):
-        self.chat = type("_Chat", (), {"completions": _FakeCompletions(text)})()
+    def __init__(self, text, finish_reason="stop"):
+        self.chat = type(
+            "_Chat", (), {"completions": _FakeCompletions(text, finish_reason)}
+        )()
 
 
 def _items():
@@ -176,3 +180,28 @@ def test_disable_filtering_forces_keep_true(monkeypatch):
 
     assert items[0].keep is True
     assert items[1].keep is True
+
+
+_OK_RESP = ('[{"index": 0, "keep": true, "urgency": "high", "reason": "x", "rewrite": "y"},'
+            '{"index": 1, "keep": false, "urgency": "low", "reason": "z", "rewrite": ""}]')
+
+
+def test_reasoning_effort_passed_through_when_set():
+    cfg = _cfg()
+    cfg.reasoning_effort = "minimal"
+    client = _FakeClient(_OK_RESP)
+    ClaudeFilter(cfg, client=client).process(_items())
+    assert client.chat.completions.calls[0]["extra_body"] == {"reasoning": {"effort": "minimal"}}
+
+
+def test_reasoning_effort_omitted_when_blank():
+    client = _FakeClient(_OK_RESP)  # _cfg() leaves reasoning_effort=""
+    ClaudeFilter(_cfg(), client=client).process(_items())
+    assert "extra_body" not in client.chat.completions.calls[0]
+
+
+def test_truncated_response_fails_closed_without_crashing(caplog):
+    # Non-empty but cut off -> JSON parse fails -> batch fails closed, no crash.
+    client = _FakeClient('[{"index": 0, "keep": true, "urgency": "hi', finish_reason="length")
+    items = ClaudeFilter(_cfg(), client=client).process(_items())
+    assert all(it.keep is False for it in items)

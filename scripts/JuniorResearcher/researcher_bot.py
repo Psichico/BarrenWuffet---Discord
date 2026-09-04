@@ -26,6 +26,8 @@ OPENROUTER_API_KEY = os.getenv("OR_JuniorResearcherAPI")
 # Blank ⇒ "openrouter/auto" (OpenRouter routes); pin a slug or "@preset/<name>"
 # to choose the model on OpenRouter's side.
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/auto")
+# low|medium|high|minimal for reasoning models; "" / unset ⇒ don't send it.
+REASONING_EFFORT = os.getenv("OPENROUTER_REASONING_EFFORT", "").strip().lower()
 REPORT_CACHE_DAYS = float(os.getenv("REPORT_CACHE_DAYS", "3"))
 
 # Initialize Discord Bot
@@ -111,16 +113,27 @@ async def research(ctx, ticker: str):
         if not OPENROUTER_API_KEY:
             await ctx.send("❌ Error: OR_JuniorResearcherAPI is not set.")
             return
-        response = await ai_client.chat.completions.create(
+        create_kwargs = dict(
             model=OPENROUTER_MODEL,
             messages=[
                 {"role": "system", "content": "You are a professional equity research analyst."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=2500
+            # Counts reasoning + visible tokens; give reasoning models room so the
+            # report isn't cut off mid-section.
+            max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8000")),
         )
-        llm_output = response.choices[0].message.content
+        if REASONING_EFFORT:
+            create_kwargs["extra_body"] = {"reasoning": {"effort": REASONING_EFFORT}}
+        response = await ai_client.chat.completions.create(**create_kwargs)
+        choice = response.choices[0]
+        llm_output = choice.message.content
+        if getattr(choice, "finish_reason", "") == "length":
+            await ctx.send(
+                f"⚠️ **{ticker}**: the model hit its token limit and the report may be "
+                f"truncated. Raise OPENROUTER_MAX_TOKENS or lower OPENROUTER_REASONING_EFFORT."
+            )
 
         # Generate PDF Bytes using generator
         await msg.edit(content=f"📄 Generating PDF report for **{ticker}**...")

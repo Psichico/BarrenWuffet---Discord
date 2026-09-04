@@ -97,6 +97,11 @@ def _extract_text(response) -> str:
     return (content or "").strip()
 
 
+def _finish_reason(response) -> str:
+    choices = getattr(response, "choices", None) or []
+    return getattr(choices[0], "finish_reason", "") if choices else ""
+
+
 def _get_client(client):
     if client is not None:
         return client
@@ -126,7 +131,7 @@ def compose(cfg: CadburyConfig, items: list[dict], when, client=None,
             volume_note=_volume_note(len(items), total),
             style=style,
         )
-        resp = _get_client(client).chat.completions.create(
+        kwargs = dict(
             model=cfg.model or _DEFAULT_MODEL,
             max_tokens=cfg.max_tokens,
             messages=[
@@ -134,9 +139,20 @@ def compose(cfg: CadburyConfig, items: list[dict], when, client=None,
                 {"role": "user", "content": digest},
             ],
         )
+        effort = (getattr(cfg, "reasoning_effort", "") or "").strip().lower()
+        if effort:
+            # OpenRouter's unified knob for reasoning/"Pro" models; ignored by
+            # models that don't reason.
+            kwargs["extra_body"] = {"reasoning": {"effort": effort}}
+
+        resp = _get_client(client).chat.completions.create(**kwargs)
         text = _extract_text(resp)
         if not text:
             raise ValueError("empty response from model")
+        if _finish_reason(resp) == "length":
+            # Truncated mid-recap (reasoning ate the budget, or max_tokens too
+            # low). A half-list email is worse than the raw fallback.
+            raise ValueError("response truncated at max_tokens")
         return text
     except Exception as e:
         logger.error("cadbury_bot: recap generation failed (%s) - sending raw "
